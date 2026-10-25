@@ -1,0 +1,217 @@
+﻿2010 [AOW] Eruption: OK
+2030 Blasphemous Blade [AOW] Taker's Flames: OK
+2035 Envoy's Horn [AOW] Oracular Bubble: OK
+2060 [AOW] Storm Blade: OK
+2061 [AOW] Vacuum Slice [Emitter]: OK
+2062 [AOW] Vacuum Slice: OK
+2065 Winged Greathorn [AOW] Soul Stifler: OK
+2070 [AOW] Holy Ground: FROZEN (1 still alive)
+2075 Marika's Hammer [AOW] Gold Breaker: OK
+2080 [AOW] Thunderbolt: OK
+2090 [AOW] Lightning Slash: OK
+2095 [AOW] Lightning Slash / Thunderbolt: OK
+2100 Curved Sword Category [AOW]: OK
+2110 [AOW] Bloody Slash: OK
+2114 Scepter of the All-Knowing [AOW] Knowledge Above All: OK
+2116 Devourer's Scepter [AOW] Devourer of Worlds: OK
+2130 [AOW] Glintstone Pebble: OK
+2135 Morgott's Cursed Sword [AOW] Cursed-Blood Slice: OK
+2145 Eclipse Shotel - [AOW] Death Flare Bullet: OK
+2190 [AOW] Gravitas: OK
+2195 Royal Greatsword [AOW] Wolf's Assault: OK
+2205 Starscourge Greatsword [AOW] Starcaller Cry: OK
+2215 Sword of Night and Flame [AOW] Night-and-Flame Stance: FROZEN (1 still alive)
+2225 Axe of Godrick [AOW] I Command Thee Kneel!: OK
+2260 [AOW] Hoarfrost Stomp: OK
+2270 Ruins Greatsword: OK
+2271 Ruins Greatsword: OK
+2272 Ruins Greatsword: OK
+2273 Ruins Greatsword: OK
+2275 Ruins Greatsword R2: OK
+2276 Ruins Greatsword R2: OK
+2277 Ruins Greatsword R2: OK
+2278 Ruins Greatsword R2: OK
+2280 [AOW] Storm Stomp: OK
+2290 Death's Poker [AOW] Ghostflame Ignition: OK
+2300 [AOW] Glintblade Phalanx: FROZEN (4 still alive)
+2310 [AOW] Prelate's Charge: OK
+2320 Maliketh's Black Blade [AOW] Destined Death: OK
+2325 Death Ritual Spear [AOW] Spearcall Ritual: OK
+2335 Mohgwyn's Sacred Spear [AOW] Bloodboon Ritual: OK
+2345 Fallingstar Beast Jaw [AOW] Gravity Bolt: OK
+2360 Bastard's Stars [AOW] Nebula: FROZEN (113 still alive)
+2370 Cranial Vessel Candlestand [AOW] Surge of Faith: OK
+2380 Siluria's Tree [AOW] Siluria's Woe: OK
+2385 Grafted Dragon [AOW] Bear Witness!: OK
+2430 [AOW] Black Flame Tornado: FROZEN (1 still alive)
+2490 [AOW] Ice Spear: OK
+2500 Dark Moon Greatsword: OK
+2520 Carian Knight's Sword - Lazuli Glintstone Sword: OK
+2525 Wing of Astel: OK
+2540 Frozen Needle: OK
+2570 [AOW] Flame of the Redmanes: OK
+2580 Black Knife [AOW] Blade of Death: OK
+2585 Blade of Calling [AOW] Blade of Gold: OK
+2600 [AOW] Storm Assault: OK
+2610 [AOW] Sacred Ring of Light: OK
+2630 [AOW] Firebreather: FROZEN (15 still alive)
+2635 [AOW] Blood Blade: OK
+2640 [AOW] Stormcaller: OK
+2655 [AOW] Storm Wall: OK
+2658 [AOW] Phantom Slash: OK
+2662 [AOW] Phantom Slash [Emitter]: OK
+2670 [AOW] White Shadow's Lure: OK
+2680 One-Eyed Shield [AOW] Flame Spit: OK
+2685 Visage Shield [AOW] Tongues of Fire: FROZEN (21 still alive)
+2690 Envoy's Long Horn [AOW] Bubble Shower: FROZEN (23 still alive)
+2695 Envoy's Greathorn [AOW] Great Oracular Bubble: OK
+2705 Magma Whip Candlestick [AOW] Sea of Magma: FROZEN (28 still alive)
+2710 Commander's Standard [AOW] Rallying Standard: OK
+2715 Reduvia [AOW] Reduvia Blood Blade: OK
+2723 Dragonscale Blade [AOW] Ice Lightning Sword: OK
+2745 Vyke's War Spear [AOW] Frenzyflame Thrust: OK
+2760 Halo Scythe [AOW] Miquella's Ring of Light: OK
+2770 Wing of Astel [AOW] Nebula: OK
+2780 Ordovis's Greatsword: OK
+2790 [AOW] Golden Land: OK
+2800 [AOW] Beast's Roar: OK
+2825 St. Trina's Torch [AOW] Fires of Slumber: FROZEN (16 still alive)
+2830 Stormhawk Axe [AOW] Thunderstorm: OK
+2860 Magma Wyrm's Scalesword [AOW] Magma Guillotine: OK
+2870 Rosus' Axe [AOW] Rosus's Summons: OK
+2910 Cleanrot Spear: OK
+2911 Cleanrot Spear: OK
+2912 Cleanrot Spear: OK
+2913 Cleanrot Spear: OK
+2914 Cleanrot Spear: OK
+2920 Watchdog's Staff [AOW] Sorcery of the Crozier: OK
+2930 [AOW] Shield Crash/Spectral Lance: OK
+2940 Bolt of Gransax [AOW] Ancient Lightning Spear: OK
+2950 Moonveil [AOW] Transient Moonlight: OK
+2960 Sword of Milos [AOW] Shriek of Milos: OK
+2970 Beastclaw Greathammer [AOW] Regal Beastclaw: OK
+2980 Magma Blade [AOW] Magma Shower: FROZEN (27 still alive)
+2990 Alabaster Lord's Sword [AOW] Alabaster Lords' Pull: OK
+3000 Onyx Lord's Greatsword [AOW] Onyx Lords' Repulsion: OK
+3006 Ruins Greatsword [AOW] Wave of Destruction: OK
+3020 Axe of Godfrey [AOW] Regal Roar: FROZEN (2 still alive)
+3055 Zamor Curved Sword [AOW] Zamor Ice Storm: OK
+3060 Gargoyle's Blackblade [AOW] Corpse Wax Cutter: OK
+10183000 Explosive Stone: OK
+10183100 Explosive Stone Clump: OK
+10303000 Cuckoo Glintstone: OK
+10305000 Glintstone Scrap: OK
+10305100 Large Glintstone Scrap: FROZEN (1 still alive)
+10306000 Gravity Stone Fan: OK
+10307000 Gravity Stone Chunk: OK
+10331100 Frenzyflame Stone: FROZEN (1 still alive)
+10400000 Glintstone Pebble: OK
+10400100 Great Glintstone Shard: OK
+10401000 Swift Glintstone Shard: OK
+10402100 Comet: OK
+10403000 Shard Spiral: OK
+10404000 Glintstone Stars - Emitter 1: OK
+10405000 Star Shower - Emitter 1: OK
+10406000 Crystal Barrage: FROZEN (7 still alive)
+10407000 Glintstone Arc: OK
+10408000 Cannon of Haima: OK
+10409000 Crystal Burst: OK
+10410000 Shatter Earth: OK
+10411000 Rock Blaster: OK
+10412000 Gavel of Haima: OK
+10413000 Terra Magicus: FROZEN (1 still alive)
+10420000 Comet Azur - Constant Close Attack: FROZEN (1 still alive)
+10421000 Founding Rain of Stars: OK
+10422000 Stars of Ruin: OK
+10430000 Glintblade Phalanx: FROZEN (5 still alive)
+10430100 Carian Phalanx: FROZEN (9 still alive)
+10430200 Greatblade Phalanx: FROZEN (3 still alive)
+10436000 Rennala's Full Moon: OK
+10436100 Ranni's Dark Moon: OK
+10437000 Magic Downpour: OK
+10438000 Loretta's Greatbow: OK
+10438100 Loretta's Mastery: OK
+10439000 Magic Glintblade: OK
+10440000 Glintstone Icecrag: OK
+10441000 Zamor Ice Storm: OK
+10443100 Adula's Moonblade: OK
+10450000 Shattering Crystal: OK
+10451000 Crystal Release: OK
+10452000 Crystal Torrent: FROZEN (10 still alive)
+10460000 Ambush Shard: OK
+10461000 Night Shard: OK
+10462000 Night Comet: OK
+10470000 Meteorite: FROZEN (1 still alive)
+10470100 Meteorite of Astel: FROZEN (6 still alive)
+10471000 Rock Sling: OK
+10472000 Gravity Well: OK
+10472100 Collapsing Stars: OK
+10480000 Magma Shot: OK
+10481000 Gelmir's Fury: FROZEN (25 still alive)
+10482000 Roiling Magma: OK
+10483000 Rykard's Rancor: OK
+10490000 Briars of Sin: OK
+10491000 Briars of Punishment: OK
+10500000 Rancorcall: OK
+10500100 Ancient Death Rancor: OK
+10501000 Explosive Ghostflame: OK
+10503000 Tibia's Summons: OK
+10504000 Death Lightning: FROZEN (46 still alive)
+10510000 Oracle Bubbles: FROZEN (42 still alive)
+10511000 Great Oracular Bubble: OK
+10600000 Catch Flame: OK
+10600100 O Flame!: OK
+10601000 Flame Sling: OK
+10602000 Flame Fall Upon Them: OK
+10603000 Whirl O Flame!: FROZEN (32 still alive)
+10604000 Flame Cleanse Me: OK
+10610000 Giantsflame Take Thee: OK
+10611000 Flame of the Fell God: OK
+10612000 Burn O Flame!: FROZEN (26 still alive)
+10621000 Black Flame: OK
+10622000 Surge O Flame!: FROZEN (4 still alive)
+10623000 Scouring Black Flame: OK
+10624000 Noble Presence: OK
+10625000 Black Flame Ritual: OK
+10630000 Bloodflame Talons: OK
+10631000 Bloodboon: OK
+10640000 Rejection: OK
+10641000 Wrath of Gold: OK
+10670100 Triple Rings of Light: OK
+10671000 Radagon's Rings of Light: OK
+10672000 Elden Stars: FROZEN (27 still alive)
+10680000 Bestial Sling: OK
+10681000 Stone of Gurranq: OK
+10682000 Beast Claw: OK
+10683000 Gurranq's Beast Claw: OK
+10690000 Lightning Spear: OK
+10691000 Ancient Dragons' Lightning Strike: OK
+10692000 Lightning Strike: OK
+10692100 Frozen Lightning Spear: OK
+10693000 Honed Bolt: OK
+10694000 Ancient Dragons' Lightning Spear: OK
+10694100 Fortissax's Lightning Spear: OK
+10695000 Lansseax's Glaive: OK
+10700000 Dragonfire: FROZEN (24 still alive)
+10700100 Agheel's Flame: FROZEN (8 still alive)
+10701000 Magma Breath: OK
+10701100 Theodorix's Magma: OK
+10702000 Dragonice: FROZEN (24 still alive)
+10703100 Ekzykes's Decay: FROZEN (8 still alive)
+10704000 Glintstone Breath: FROZEN (24 still alive)
+10704100 Smarag's Glintstone Breath: FROZEN (8 still alive)
+10705000 Placidusax's Ruin: FROZEN (3 still alive)
+10706000 Dragonclaw: OK
+10709000 Greyoll's Roar: FROZEN (10 still alive)
+10730000 Inescapable Frenzy: OK
+10731000 The Flame of Frenzy: FROZEN (6 still alive)
+10731100 Unendurable Frenzy: FROZEN (2 still alive)
+10732000 Frenzied Burst: OK
+10733000 Howl of Shabriri: FROZEN (2 still alive)
+10752000 Aspects of the Crucible: Breath: FROZEN (15 still alive)
+10753000 Black Blade: OK
+10790000 Fire's Deadly Sin: OK
+10420002 Comet Azur - Constant Projectile: FROZEN (4 still alive)
+10470105 Meteorite of Astel - Projectile: OK
+10408050 Cannon of Haima [Charged]: OK
+10462001 Night Comet: OK

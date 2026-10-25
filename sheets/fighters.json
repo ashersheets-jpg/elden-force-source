@@ -1,0 +1,1143 @@
+{
+ "sheet": "fighters",
+ "about": "One row per playable fighter. 'custom' is the player's own Tarnished with a loadout. Unknown cells are null until verified; preflight lists them.",
+ "columns": {
+  "id": "stable key used by every other sheet",
+  "name": "display name (JUMP FORCE spelling)",
+  "series": "manga series",
+  "jf_dlc": "true if the fighter was paid DLC in JUMP FORCE",
+  "abilities": "4 ability ids: 3 skills + 1 awakening skill (ultimate)",
+  "awakening": "awakening transformation name in JUMP FORCE",
+  "outfit": "EquipParamProtector ids [head, body, arms, legs] whose model the Tarnished wears while this fighter is active (cosmetic: model fields copied onto the worn rows in memory; 10000-10300 = bare); '$player' = own look",
+  "recolor": "per piece [head, body, arms, legs]: target colour [r,g,b] the piece's textures are recoloured to (made on the player's PC from their own game files, as a new model), or null to keep the armor's colours; '$player' for own look",
+  "skin": "per piece [head, body, arms, legs]: a fan-made model shipped with the mod (mod folder skins/<name>.bnd, entries that are Elden Ring's own left empty and filled from the player's files), or null; replaces the recolour for that piece",
+  "skin_credit": "who made the skin models (shown in the listing credits)",
+  "hair_model": "Elden Ring hair PartsId (body type A) while the fighter is active; null until picked from the in-game survey",
+  "hair_rgb": "hair (and brow/beard) colour [r,g,b]",
+  "skin_rgb": "skin colour [r,g,b] while the fighter is active",
+  "body": "character-creator build sliders [head, chest, abdomen, arms, legs], 0-255",
+  "height": "model scale (1.0 = the Tarnished's own height)",
+  "aura_speffect": "SpEffectParam row whose visual effect (vfx ids only, none of its stats) is the fighter's aura while charging and in Awakening",
+  "look_notes": "what the look must read as (drives the outfit pick and recolors)",
+  "stat_profile": "row id in stat_profiles sheet",
+  "verified": "true once the fighter was played in game with every column checked",
+  "passive": "0.8.0: an extra defensive or movement ability for fighters whose kit is riskier than the rest (combat.rs / movement.rs Passive), or null",
+  "bare_hands": "0.10.0: true = the fighter fights with bare hands: every weapon the player has equipped (in hand and sheathed) is dressed as Elden Ring's empty hand in memory, and LT / skill plays Endure's braced guard (the parry); false = the player's own weapons (Your Tarnished)",
+  "move_weapon": "EquipParamWeapon row of a weapon the fighter draws for their abilities (Asta's Demon-Slayer Sword; the one on his back is part of his model), or null",
+  "air_dash": "0.10.0: 'fly' = the air dash is a faster, longer Superman flight, fist first (Goku, All Might); 'dash' = the normal air dash",
+  "particles": "the fighter's own particle effects drawn around them in fights (world_fx.rs): teal_lightning (Deku) or steam (All Might); 0.11.0 cut the rest, or null"
+ },
+ "rows": [
+  {
+   "id": "goku",
+   "name": "Goku",
+   "series": "Dragon Ball",
+   "jf_dlc": false,
+   "abilities": [
+    "goku_kamehameha",
+    "goku_raging_strike",
+    "goku_meteor_combination",
+    "goku_super_spirit_bomb"
+   ],
+   "awakening": "Super Saiyan / Super Saiyan Blue",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 119,
+   "hair_rgb": [
+    25,
+    22,
+    22
+   ],
+   "skin_rgb": [
+    236,
+    196,
+    160
+   ],
+   "body": [
+    128,
+    200,
+    170,
+    210,
+    190
+   ],
+   "height": 1.0,
+   "aura_speffect": 1790300,
+   "look_notes": "orange gi, blue undershirt/wristbands/belt, black spiky hair",
+   "stat_profile": "brawler",
+   "verified": false,
+   "skin": [
+    "goku_hd_m_1850",
+    "goku_bd_m_1850",
+    "goku_am_m_1850",
+    "goku_lg_m_1850"
+   ],
+   "skin_credit": "Goku SSJ model by Bluesands (Nexus Mods 7497), moved from the Radagon boss onto the player skeleton",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "fly",
+   "particles": null
+  },
+  {
+   "id": "naruto",
+   "name": "Naruto",
+   "series": "Naruto",
+   "jf_dlc": false,
+   "abilities": [
+    "naruto_rasengan",
+    "naruto_tbb_rasen_shuriken",
+    "naruto_uzumaki_barrage",
+    "naruto_shadow_clone"
+   ],
+   "awakening": "Six Paths Sage Mode",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 5,
+   "hair_rgb": [
+    255,
+    205,
+    40
+   ],
+   "skin_rgb": [
+    242,
+    202,
+    166
+   ],
+   "body": [
+    135,
+    140,
+    120,
+    140,
+    140
+   ],
+   "height": 0.94,
+   "aura_speffect": 1645000,
+   "look_notes": "orange-and-black jumpsuit, forehead protector, blond spiky hair",
+   "stat_profile": "speedster",
+   "verified": false,
+   "skin": [
+    "hd_m_1850",
+    "bd_m_1850",
+    "am_m_1850",
+    "lg_m_1850"
+   ],
+   "skin_credit": "Naruto Uzumaki (Shippuden) model by Bluesands (Nexus Mods 5204)",
+   "passive": "substitution",
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "luffy",
+   "name": "Luffy",
+   "series": "One Piece",
+   "jf_dlc": false,
+   "abilities": [
+    "luffy_red_hawk",
+    "luffy_grizzly_magnum",
+    "luffy_gatling_battle_axe",
+    "luffy_gear_fourth_attack"
+   ],
+   "awakening": "Gear Fourth",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 6,
+   "hair_rgb": [
+    18,
+    16,
+    16
+   ],
+   "skin_rgb": [
+    230,
+    184,
+    148
+   ],
+   "body": [
+    128,
+    110,
+    100,
+    120,
+    120
+   ],
+   "height": 0.96,
+   "aura_speffect": 1631000,
+   "look_notes": "straw hat, open red vest, blue shorts, sandals, black messy hair",
+   "stat_profile": "brawler",
+   "verified": false,
+   "skin": [
+    "luffy_hd_m_1850",
+    "luffy_bd_m_1850",
+    "luffy_am_m_1850",
+    "luffy_lg_m_1850"
+   ],
+   "skin_credit": "Elden Force original model (dark fantasy redesign generated for this mod)",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "deku",
+   "name": "Deku",
+   "series": "My Hero Academia",
+   "jf_dlc": false,
+   "abilities": [
+    "deku_detroit_smash",
+    "deku_delaware_smash",
+    "deku_shoot_style",
+    "deku_delaware_detroit_smash"
+   ],
+   "awakening": "Full Cowl 100%",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 100,
+   "hair_rgb": [
+    30,
+    95,
+    45
+   ],
+   "skin_rgb": [
+    242,
+    206,
+    176
+   ],
+   "body": [
+    128,
+    135,
+    120,
+    145,
+    140
+   ],
+   "height": 0.92,
+   "aura_speffect": 1647000,
+   "look_notes": "green hero bodysuit, red boots, white gloves, dark green curly hair",
+   "stat_profile": "speedster",
+   "verified": false,
+   "skin": [
+    "darkdeku_hd_m_1850",
+    "darkdeku_bd_m_1850",
+    "darkdeku_am_m_1850",
+    "darkdeku_lg_m_1850"
+   ],
+   "skin_credit": "Dark Deku model used with its author's permission; the author asked not to be named or linked",
+   "passive": "full_cowl",
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": "teal_lightning"
+  },
+  {
+   "id": "all_might",
+   "name": "All Might",
+   "series": "My Hero Academia",
+   "jf_dlc": true,
+   "abilities": [
+    "allmight_detroit_smash",
+    "allmight_oklahoma_smash",
+    "allmight_plus_ultra_barrage",
+    "allmight_united_states_of_smash"
+   ],
+   "awakening": "Muscle Form",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 108,
+   "hair_rgb": [
+    255,
+    215,
+    60
+   ],
+   "skin_rgb": [
+    236,
+    196,
+    158
+   ],
+   "body": [
+    105,
+    255,
+    215,
+    255,
+    235
+   ],
+   "height": 1.22,
+   "aura_speffect": 1649000,
+   "look_notes": "superhero suit: blue bodysuit, red/yellow accents, white gloves and boots, blond hair with two upright bangs, huge muscled build",
+   "stat_profile": "tank",
+   "verified": false,
+   "skin": [
+    "all_might_hd_m_1850",
+    "all_might_bd_m_1850",
+    "all_might_am_m_1850",
+    "all_might_lg_m_1850"
+   ],
+   "skin_credit": "Elden Force original model (dark fantasy redesign generated for this mod)",
+   "passive": "unbreakable",
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "fly",
+   "particles": "steam"
+  },
+  {
+   "id": "bakugo",
+   "name": "Bakugo",
+   "series": "My Hero Academia",
+   "jf_dlc": true,
+   "abilities": [
+    "bakugo_ap_shot_autocannon",
+    "bakugo_stun_grenade",
+    "bakugo_burst_speed",
+    "bakugo_howitzer_impact"
+   ],
+   "awakening": "Awakening",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 119,
+   "hair_rgb": [
+    235,
+    225,
+    175
+   ],
+   "skin_rgb": [
+    242,
+    206,
+    176
+   ],
+   "body": [
+    128,
+    150,
+    120,
+    160,
+    150
+   ],
+   "height": 0.94,
+   "aura_speffect": 1645000,
+   "look_notes": "black tank top with orange X, grenade gauntlets, green-grey pants, ash-blond spiky hair",
+   "stat_profile": "speedster",
+   "verified": false,
+   "skin": [
+    "bakugo_hd_m_1850",
+    "bakugo_bd_m_1850",
+    "bakugo_am_m_1850",
+    "bakugo_lg_m_1850"
+   ],
+   "skin_credit": "Elden Force original model (dark fantasy redesign generated for this mod)",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "todoroki",
+   "name": "Todoroki",
+   "series": "My Hero Academia",
+   "jf_dlc": true,
+   "abilities": [
+    "todoroki_dancing_flame",
+    "todoroki_heaven_piercing_ice_wall",
+    "todoroki_jet_burn",
+    "todoroki_flashfreeze_heatwave"
+   ],
+   "awakening": "Awakening",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 104,
+   "hair_rgb": [
+    235,
+    232,
+    228
+   ],
+   "skin_rgb": [
+    244,
+    212,
+    188
+   ],
+   "body": [
+    128,
+    130,
+    120,
+    140,
+    140
+   ],
+   "height": 0.97,
+   "aura_speffect": 1646000,
+   "look_notes": "dark blue hero costume, ice on the left side, half white / half red hair",
+   "stat_profile": "caster",
+   "verified": false,
+   "skin": [
+    "etodoroki_hd_m_1850",
+    "etodoroki_bd_m_1850",
+    "etodoroki_am_m_1850",
+    "etodoroki_lg_m_1850"
+   ],
+   "skin_credit": "Todoroki model used with its author's permission; the author asked not to be named or linked",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "asta",
+   "name": "Asta",
+   "series": "Black Clover",
+   "jf_dlc": false,
+   "abilities": [
+    "asta_demon_dweller_sword",
+    "asta_black_hurricane",
+    "asta_black_divider",
+    "asta_black_meteorite"
+   ],
+   "awakening": "Black Asta",
+   "outfit": [
+    790000,
+    790100,
+    10200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 119,
+   "hair_rgb": [
+    205,
+    205,
+    200
+   ],
+   "skin_rgb": [
+    236,
+    200,
+    170
+   ],
+   "body": [
+    120,
+    175,
+    150,
+    195,
+    165
+   ],
+   "height": 0.88,
+   "aura_speffect": 1627000,
+   "look_notes": "black Black Bulls robe, sleeveless dark top, grey spiky hair, short and very muscular",
+   "stat_profile": "tank",
+   "verified": false,
+   "skin": [
+    "asta_hd_m_1850",
+    "asta_bd_m_1850",
+    null,
+    "asta_lg_m_1850"
+   ],
+   "skin_credit": "Elden Force original model (dark fantasy redesign generated for this mod)",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": 2000000,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "ichigo",
+   "name": "Ichigo",
+   "series": "Bleach",
+   "jf_dlc": false,
+   "abilities": [
+    "ichigo_getsuga_tensho",
+    "ichigo_flash_step",
+    "ichigo_tensa_zangetsu",
+    "ichigo_mugetsu"
+   ],
+   "awakening": "Bankai: Tensa Zangetsu",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 119,
+   "hair_rgb": [
+    230,
+    110,
+    40
+   ],
+   "skin_rgb": [
+    236,
+    200,
+    170
+   ],
+   "body": [
+    128,
+    175,
+    150,
+    185,
+    175
+   ],
+   "height": 1.0,
+   "aura_speffect": 1627000,
+   "look_notes": "black shihakusho robe, white belt, spiky orange hair, Zangetsu on his back",
+   "stat_profile": "brawler",
+   "verified": false,
+   "skin": [
+    "ichigo_hd_m_1850",
+    "ichigo_bd_m_1850",
+    "ichigo_am_m_1850",
+    "ichigo_lg_m_1850"
+   ],
+   "skin_credit": "Ichigo model used with its author's permission; the author asked not to be named or linked",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": 9000000,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "sasuke",
+   "name": "Sasuke",
+   "series": "Naruto",
+   "jf_dlc": false,
+   "abilities": [
+    "sasuke_chidori",
+    "sasuke_great_fireball",
+    "sasuke_amaterasu",
+    "sasuke_kirin"
+   ],
+   "awakening": "Susanoo",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 104,
+   "hair_rgb": [
+    25,
+    22,
+    32
+   ],
+   "skin_rgb": [
+    236,
+    206,
+    180
+   ],
+   "body": [
+    128,
+    160,
+    140,
+    165,
+    165
+   ],
+   "height": 0.98,
+   "aura_speffect": 9990120,
+   "look_notes": "grey high-collared shirt, purple rope belt, dark cloak, black hair, Sharingan / Rinnegan",
+   "stat_profile": "speedster",
+   "verified": false,
+   "skin": [
+    "sasuke_hd_m_1850",
+    "sasuke_bd_m_1850",
+    "sasuke_am_m_1850",
+    "sasuke_lg_m_1850"
+   ],
+   "skin_credit": "Sasuke model used with its author's permission; the author asked not to be named or linked",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": 9000000,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "zoro",
+   "name": "Zoro",
+   "series": "One Piece",
+   "jf_dlc": false,
+   "abilities": [
+    "zoro_tora_gari",
+    "zoro_pound_cannon",
+    "zoro_tatsumaki",
+    "zoro_asura"
+   ],
+   "awakening": "Asura",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "skin": [
+    "zoro2_hd_m_1850",
+    "zoro2_bd_m_1850",
+    "zoro2_am_m_1850",
+    "zoro2_lg_m_1850"
+   ],
+   "skin_credit": "Zoro (v2) model used with its author's permission; the author asked not to be named or linked",
+   "hair_model": 119,
+   "hair_rgb": [
+    70,
+    150,
+    80
+   ],
+   "skin_rgb": [
+    222,
+    180,
+    140
+   ],
+   "body": [
+    128,
+    195,
+    165,
+    205,
+    185
+   ],
+   "height": 1.0,
+   "aura_speffect": 1790300,
+   "look_notes": "open green kimono, red sash, black bandana on the arm, short green hair, three katanas",
+   "stat_profile": "tank",
+   "verified": false,
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": 9000000,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "yami",
+   "name": "Yami",
+   "series": "Black Clover",
+   "jf_dlc": false,
+   "abilities": [
+    "yami_black_moon",
+    "yami_death_thrust",
+    "yami_avidya_slash",
+    "yami_dimension_slash"
+   ],
+   "awakening": "Dark Magic",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 119,
+   "hair_rgb": [
+    25,
+    25,
+    28
+   ],
+   "skin_rgb": [
+    226,
+    190,
+    160
+   ],
+   "body": [
+    128,
+    200,
+    170,
+    210,
+    190
+   ],
+   "height": 1.06,
+   "aura_speffect": 1627000,
+   "look_notes": "Black Bulls robe over a sleeveless top, swept-back black hair, stubble, katana",
+   "stat_profile": "tank",
+   "verified": false,
+   "skin": [
+    "yami_hd_m_1850",
+    "yami_bd_m_1850",
+    "yami_am_m_1850",
+    "yami_lg_m_1850"
+   ],
+   "skin_credit": "Yami model used with its author's permission; the author asked not to be named or linked",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": 9010000,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "gojo",
+   "name": "Gojo",
+   "series": "Jujutsu Kaisen",
+   "jf_dlc": false,
+   "abilities": [
+    "gojo_lapse_blue",
+    "gojo_reversal_red",
+    "gojo_infinity",
+    "gojo_hollow_purple"
+   ],
+   "awakening": "Domain Expansion: Unlimited Void",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 104,
+   "hair_rgb": [
+    240,
+    240,
+    245
+   ],
+   "skin_rgb": [
+    240,
+    214,
+    196
+   ],
+   "body": [
+    128,
+    165,
+    140,
+    170,
+    175
+   ],
+   "height": 1.04,
+   "aura_speffect": 1646000,
+   "look_notes": "black high-collared Jujutsu High uniform, white hair, black blindfold",
+   "stat_profile": "caster",
+   "verified": false,
+   "skin": [
+    "gojo_hd_m_1850",
+    "gojo_bd_m_1850",
+    "gojo_am_m_1850",
+    "gojo_lg_m_1850"
+   ],
+   "skin_credit": "Satoru Gojo model by Bluesands (Nexus Mods 4573), shared under the author's permissions (assets free to use with credit)",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "yuji",
+   "name": "Yuji",
+   "series": "Jujutsu Kaisen",
+   "jf_dlc": false,
+   "abilities": [
+    "yuji_piercing_blood",
+    "yuji_black_flash",
+    "yuji_manji_kick",
+    "yuji_black_flash_barrage"
+   ],
+   "awakening": "Sukuna's Vessel",
+   "outfit": [
+    790000,
+    790100,
+    790200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 119,
+   "hair_rgb": [
+    205,
+    120,
+    110
+   ],
+   "skin_rgb": [
+    236,
+    200,
+    170
+   ],
+   "body": [
+    128,
+    175,
+    150,
+    185,
+    175
+   ],
+   "height": 0.97,
+   "aura_speffect": 1790300,
+   "look_notes": "black Jujutsu High uniform with a red hood, pink-brown spiky hair",
+   "stat_profile": "brawler",
+   "verified": false,
+   "skin": [
+    "yuji_hd_m_1850",
+    "yuji_bd_m_1850",
+    "yuji_am_m_1850",
+    "yuji_lg_m_1850"
+   ],
+   "skin_credit": "Yuji Itadori model by Bluesands (Nexus Mods 4547, Yuji and Sukuna), shared under the author's permissions (assets free to use with credit)",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "gon",
+   "name": "Gon",
+   "series": "Hunter x Hunter",
+   "jf_dlc": false,
+   "abilities": [
+    "gon_jajanken_rock",
+    "gon_jajanken_scissors",
+    "gon_jajanken_paper",
+    "gon_adult_form"
+   ],
+   "awakening": "Adult Form",
+   "outfit": [
+    790000,
+    790100,
+    10200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 119,
+   "hair_rgb": [
+    30,
+    40,
+    30
+   ],
+   "skin_rgb": [
+    236,
+    200,
+    165
+   ],
+   "body": [
+    128,
+    150,
+    135,
+    160,
+    160
+   ],
+   "height": 0.86,
+   "aura_speffect": 1790300,
+   "look_notes": "green jacket and shorts, spiky black-green hair, fishing rod",
+   "stat_profile": "brawler",
+   "verified": false,
+   "skin": [
+    "nigon_hd_m_1850",
+    "nigon_bd_m_1850",
+    null,
+    "nigon_lg_m_1850"
+   ],
+   "skin_credit": "Generated for Elden Force (fal.ai: Nano Banana concept, Meshy 3D), hands are Elden Ring's own; Adult Gon the same way",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "killua",
+   "name": "Killua",
+   "series": "Hunter x Hunter",
+   "jf_dlc": false,
+   "abilities": [
+    "killua_thunderbolt",
+    "killua_lightning_palm",
+    "killua_narukami",
+    "killua_godspeed"
+   ],
+   "awakening": "Godspeed",
+   "outfit": [
+    790000,
+    790100,
+    10200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 104,
+   "hair_rgb": [
+    225,
+    230,
+    240
+   ],
+   "skin_rgb": [
+    242,
+    220,
+    205
+   ],
+   "body": [
+    120,
+    140,
+    125,
+    150,
+    150
+   ],
+   "height": 0.86,
+   "aura_speffect": 9990120,
+   "look_notes": "white shirt, purple long-sleeve, shorts, messy white hair, yo-yos",
+   "stat_profile": "speedster",
+   "verified": false,
+   "skin": [
+    "nikillua_hd_m_1850",
+    "nikillua_bd_m_1850",
+    null,
+    "nikillua_lg_m_1850"
+   ],
+   "skin_credit": "Generated for Elden Force (fal.ai: Nano Banana concept, Meshy 3D), hands are Elden Ring's own; Godspeed's lit hair the same model",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "jotaro",
+   "name": "Jotaro",
+   "series": "JoJo's Bizarre Adventure",
+   "jf_dlc": false,
+   "abilities": [
+    "jotaro_ora_rush",
+    "jotaro_star_finger",
+    "jotaro_the_world",
+    "jotaro_time_stop_ora"
+   ],
+   "awakening": "Star Platinum: The World",
+   "outfit": [
+    790000,
+    790100,
+    10200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 119,
+   "hair_rgb": [
+    22,
+    20,
+    26
+   ],
+   "skin_rgb": [
+    230,
+    196,
+    166
+   ],
+   "body": [
+    128,
+    205,
+    170,
+    210,
+    190
+   ],
+   "height": 1.08,
+   "aura_speffect": 1646000,
+   "look_notes": "long black school coat with a high collar, chains, cap fused with his hair",
+   "stat_profile": "tank",
+   "verified": false,
+   "skin": [
+    "jotaro_hd_m_1850",
+    "jotaro_bd_m_1850",
+    null,
+    "jotaro_lg_m_1850"
+   ],
+   "skin_credit": "Generated for Elden Force (fal.ai: Nano Banana concept, Meshy 3D), hands are Elden Ring's own",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "dio",
+   "name": "DIO",
+   "series": "JoJo's Bizarre Adventure",
+   "jf_dlc": false,
+   "abilities": [
+    "dio_muda_rush",
+    "dio_vaporization_freezing",
+    "dio_the_world",
+    "dio_road_roller"
+   ],
+   "awakening": "The World",
+   "outfit": [
+    790000,
+    790100,
+    10200,
+    790300
+   ],
+   "recolor": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "hair_model": 104,
+   "hair_rgb": [
+    240,
+    210,
+    110
+   ],
+   "skin_rgb": [
+    244,
+    222,
+    208
+   ],
+   "body": [
+    128,
+    190,
+    160,
+    200,
+    185
+   ],
+   "height": 1.05,
+   "aura_speffect": 1627000,
+   "look_notes": "yellow jacket and trousers, green headband, blond hair",
+   "stat_profile": "caster",
+   "verified": false,
+   "skin": [
+    "dio_hd_m_1850",
+    "dio_bd_m_1850",
+    null,
+    "dio_lg_m_1850"
+   ],
+   "skin_credit": "Generated for Elden Force (fal.ai: Nano Banana concept, Meshy 3D), hands are Elden Ring's own",
+   "passive": null,
+   "bare_hands": true,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  },
+  {
+   "id": "custom",
+   "name": "Your Tarnished",
+   "series": "Elden Ring",
+   "jf_dlc": false,
+   "abilities": [
+    "$loadout",
+    "$loadout",
+    "$loadout",
+    "$loadout"
+   ],
+   "awakening": "Awakening",
+   "outfit": "$player",
+   "recolor": "$player",
+   "hair_model": "$player",
+   "hair_rgb": "$player",
+   "skin_rgb": "$player",
+   "body": "$player",
+   "height": 1.0,
+   "aura_speffect": 1660000,
+   "look_notes": "the player's own Tarnished",
+   "stat_profile": "balanced",
+   "verified": false,
+   "skin": null,
+   "skin_credit": null,
+   "passive": null,
+   "bare_hands": false,
+   "move_weapon": null,
+   "air_dash": "dash",
+   "particles": null
+  }
+ ]
+}

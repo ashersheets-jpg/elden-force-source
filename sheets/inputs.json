@@ -1,0 +1,158 @@
+{
+ "sheet": "inputs",
+ "about": "Every button the mod listens to. Keyboard keys are read with GetAsyncKeyState; controller buttons from the XInputGetState hook. While a binding is held, the game does not see those buttons (hooks.input).",
+ "columns": {
+  "id": "action key",
+  "action": "what it does",
+  "keyboard": "Windows virtual-key code (hex)",
+  "controller": "XInput buttons held together (XINPUT_GAMEPAD_* names, LEFT_TRIGGER/RIGHT_TRIGGER for the triggers, + joins a chord); in-world rows can be rebound by the player in the Controls page",
+  "when": "in_world, grace (resting at a Site of Grace), menu (our menu open)",
+  "verified": "pressed in game and saw the effect"
+ },
+ "rows": [
+  {
+   "id": "ability_1",
+   "action": "use ability slot 1",
+   "keyboard": "0x31",
+   "controller": "LEFT_THUMB+A",
+   "when": "in_world",
+   "verified": true
+  },
+  {
+   "id": "ability_2",
+   "action": "use ability slot 2",
+   "keyboard": "0x32",
+   "controller": "LEFT_THUMB+B",
+   "when": "in_world",
+   "verified": false
+  },
+  {
+   "id": "ability_3",
+   "action": "use ability slot 3",
+   "keyboard": "0x33",
+   "controller": "LEFT_THUMB+X",
+   "when": "in_world",
+   "verified": false
+  },
+  {
+   "id": "ability_4",
+   "action": "use ultimate (needs full Awakening)",
+   "keyboard": "0x34",
+   "controller": "LEFT_THUMB+Y",
+   "when": "in_world",
+   "verified": false
+  },
+  {
+   "id": "special",
+   "action": "Swing: Deku's Black Whip or Luffy's stretched arm. Hold to swing from what it catches ahead and above; Deku with an enemy locked on (or close in front) pulls himself in for a flying kick. Goku: Instant Transmission. Asta, in the air: the Blade Glider",
+   "keyboard": "0x51",
+   "controller": "LEFT_THUMB+RIGHT_SHOULDER",
+   "when": "in_world",
+   "verified": false
+  },
+  {
+   "id": "menu_open",
+   "action": "open the JUMP FORCE menu (fighter select / loadout)",
+   "keyboard": "0x4A",
+   "controller": "LEFT_THUMB+BACK",
+   "when": "grace",
+   "verified": true
+  },
+  {
+   "id": "menu_up",
+   "action": "move selection up",
+   "keyboard": "0x26",
+   "controller": "DPAD_UP",
+   "when": "menu",
+   "verified": true
+  },
+  {
+   "id": "menu_down",
+   "action": "move selection down",
+   "keyboard": "0x28",
+   "controller": "DPAD_DOWN",
+   "when": "menu",
+   "verified": true
+  },
+  {
+   "id": "menu_left",
+   "action": "previous column / ability",
+   "keyboard": "0x25",
+   "controller": "DPAD_LEFT",
+   "when": "menu",
+   "verified": true
+  },
+  {
+   "id": "menu_right",
+   "action": "next column / ability",
+   "keyboard": "0x27",
+   "controller": "DPAD_RIGHT",
+   "when": "menu",
+   "verified": true
+  },
+  {
+   "id": "menu_confirm",
+   "action": "choose",
+   "keyboard": "0x0D",
+   "controller": "A",
+   "when": "menu",
+   "verified": true
+  },
+  {
+   "id": "menu_back",
+   "action": "close the menu",
+   "keyboard": "0x1B",
+   "controller": "B",
+   "when": "menu",
+   "verified": true
+  },
+  {
+   "id": "menu_settings",
+   "action": "open the Controls page (rebind the ability buttons) from the fighter select",
+   "keyboard": "0x09",
+   "controller": "Y",
+   "when": "menu",
+   "verified": false
+  },
+  {
+   "id": "menu_moves",
+   "action": "1.2.0: open the Move List (every fighter's combo tree and movement) from the fighter select",
+   "keyboard": "0x4D",
+   "controller": "RIGHT_THUMB",
+   "when": "menu",
+   "verified": false
+  },
+  {
+   "id": "menu_build",
+   "action": "open the Build page (spend free attribute points) from the fighter select",
+   "keyboard": "0x42",
+   "controller": "LEFT_SHOULDER",
+   "when": "menu",
+   "verified": false
+  },
+  {
+   "id": "menu_difficulty",
+   "action": "change the boss difficulty (Easy / Normal / Hard) in the fighter select",
+   "keyboard": "0x44",
+   "controller": "X",
+   "when": "menu",
+   "verified": false
+  },
+  {
+   "id": "menu_warnings",
+   "action": "change the boss warnings (Off / Text / Visual / All) in the fighter select",
+   "keyboard": "0x57",
+   "controller": "RIGHT_SHOULDER",
+   "when": "menu",
+   "verified": false
+  },
+  {
+   "id": "menu_training",
+   "action": "Training on or off in the fighter select: the enemy you lock onto becomes a punching bag that shows every hit",
+   "keyboard": "0x54",
+   "controller": "RIGHT_TRIGGER",
+   "when": "menu",
+   "verified": false
+  }
+ ]
+}

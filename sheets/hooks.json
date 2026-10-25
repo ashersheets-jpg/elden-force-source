@@ -1,0 +1,139 @@
+{
+ "sheet": "hooks",
+ "about": "Every Elden Ring system the mod touches. Each row is one module in the DLL. 'api' names the fromsoftware-rs item or the RE target.",
+ "columns": {
+  "id": "key used by other sheets",
+  "system": "what it is for",
+  "api": "fromsoftware-rs type/function, or what must be reverse engineered",
+  "source": "crate (exists in fromsoftware-rs 0.14) or re (we must find it)",
+  "verified": "checked in the running game"
+ },
+ "rows": [
+  {
+   "id": "boot",
+   "system": "wait for the game window and a fresh reflection scan, then start tasks",
+   "api": "CSTaskImp::wait_for_instance + run_recurring(FrameBegin)",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "player",
+   "system": "main player, HP/FP/stamina, position",
+   "api": "WorldChrMan.main_player / PlayerGameData",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "params",
+   "system": "clone and tune Bullet/AtkParam/SpEffect rows in memory",
+   "api": "SoloParamRepository::get_mut<AtkParam_Pc> via Bullet.atk_id_bullet; bullets spawned with goods_id 1700 (Throwing Dagger) so flat atk applies",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "bullet_spawn",
+   "system": "fire ability bullets so the engine does hits",
+   "api": "CSBulletManager::spawn_bullet(BulletSpawnData)",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "speffect",
+   "system": "apply/remove fighter stat profiles and buffs",
+   "api": "ChrInsExt::apply_speffect / remove_speffect",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "player_move",
+   "system": "move the player for dashes, blitzes, leaps, dives, double jump, air dash and slide: per-frame steps from the current position (motion.rs), so crossing a map block doesn't throw the player across the map",
+   "api": "CSChrPhysicsModule.position + chr_proxy_pos_update_requested, gravity_disabled; Havok ray casts for walls and ground",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "anim_play",
+   "system": "play an Elden Ring animation on the player for each ability",
+   "api": "CSChrEventModule.request_animation_id: tried in 0.3.0, the game ignores it (lab trace); abilities use motion, effects and impact freezes instead",
+   "source": "re",
+   "verified": false
+  },
+  {
+   "id": "damage_event",
+   "system": "know when the player is hit (Awakening gauge)",
+   "api": "poll ChrIns HP delta + last_hit_by each frame",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "input",
+   "system": "ability buttons on keyboard, mouse and controller without the game also reacting; rebindable in the Controls page",
+   "api": "DirectInput GetDeviceState + XInputGetState detours; chords hidden inside the XInput hook from the same pad state the game reads",
+   "source": "re",
+   "verified": false
+  },
+  {
+   "id": "grace_menu",
+   "system": "open the Elden Force menu at a Site of Grace",
+   "api": "CSLuaEventManImp.lua_event_proxy.control_flags.bonfire_sitting_loop_active",
+   "source": "re",
+   "verified": true
+  },
+  {
+   "id": "overlay",
+   "system": "fighter select, grace menu, Ki/Awakening HUD",
+   "api": "hudhook DX12 ImGui",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "outfit",
+   "system": "equip a fighter's vanilla armor look",
+   "api": "ChrAsm equipment slots",
+   "source": "re",
+   "verified": false
+  },
+  {
+   "id": "audio",
+   "system": "play Elden Force's own shouts (voices.bin) and music (jumpring/audio: menu, exploring, boss themes, the Burning of the Erdtree)",
+   "api": "cridecoder (MIT) AFS2 + HCA decode in-process, rodio playback",
+   "source": "re",
+   "verified": true
+  },
+  {
+   "id": "save",
+   "system": "separate save so the player's vanilla save is never touched",
+   "api": "rewrite the single UTF-16 .sl2 literal in eldenring.exe memory to .jr2 at boot; seed ER0000.jr2 from ER0000.sl2 once",
+   "source": "re",
+   "verified": true
+  },
+  {
+   "id": "log",
+   "system": "mod log the agent reads after each run",
+   "api": "%LOCALAPPDATA%/JumpRing/logs/latest.log",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "movement",
+   "system": "fighter movement: 1.5x running/jumps, 1.5x faster dodges, double jump, air dash, slide",
+   "api": "CSChrPhysicsModule.motion_multiplier, CSChrBehaviorModule.animation_speed, CSChrActionRequestModule.new_action_presses, CSChrTimeActModule anim ids",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "hitstop",
+   "system": "impact freeze on big hits",
+   "api": "CSFlipper.game_speed",
+   "source": "crate",
+   "verified": true
+  },
+  {
+   "id": "soft_target",
+   "system": "moves home on the nearest enemy in front when nothing is locked on",
+   "api": "WorldChrMan.chr_inses_by_distance, ChrIns.team_type",
+   "source": "crate",
+   "verified": true
+  }
+ ]
+}

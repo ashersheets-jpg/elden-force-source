@@ -1,0 +1,13 @@
+{
+ "sheet": "audio",
+ "about": "1.0: unused (Elden Force's sounds are its own files: jumpring/voices.bin and jumpring/audio, see audio.rs). Kept so fighters can name a voice row again later.",
+ "columns": {
+  "id": "key",
+  "bank": "awb file name",
+  "stream": "stream index, or 'random' to pick any line",
+  "fighter": "fighter id or 'none'",
+  "use": "when it plays",
+  "verified": "heard in game"
+ },
+ "rows": []
+}

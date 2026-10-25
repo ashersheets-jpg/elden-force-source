@@ -1,0 +1,116 @@
+{
+ "sheet": "deliveries",
+ "about": "How an ability physically happens in Elden Ring. Each row becomes one Rust struct implementing the delivery.",
+ "columns": {
+  "id": "key used by abilities.delivery",
+  "how": "what the DLL does",
+  "uses_bullet": "spawns engine bullets via CSBulletManager::spawn_bullet",
+  "moves_player": "the DLL moves the Tarnished (rush/dash)",
+  "hits_per_cast": "how many hits one cast lands; per-hit damage = attack rating x dmg_mult / sqrt(hits_per_cast)",
+  "streams": "parallel bullets per shot (beams fire several side by side to look massive)",
+  "hook": "row id in hooks sheet it depends on",
+  "verified": "works in game"
+ },
+ "rows": [
+  {
+   "id": "beam",
+   "how": "a charge, then a stream of bullets toward the target ending in a big blast (scripts.rs)",
+   "uses_bullet": true,
+   "moves_player": false,
+   "hits_per_cast": 8,
+   "streams": 3,
+   "hook": "bullet_spawn",
+   "verified": true
+  },
+  {
+   "id": "projectile",
+   "how": "one large forward bullet",
+   "uses_bullet": true,
+   "moves_player": false,
+   "hits_per_cast": 1,
+   "streams": 1,
+   "hook": "bullet_spawn",
+   "verified": false
+  },
+  {
+   "id": "multi_projectile",
+   "how": "a volley of small forward bullets",
+   "uses_bullet": true,
+   "moves_player": false,
+   "hits_per_cast": 5,
+   "streams": 1,
+   "hook": "bullet_spawn",
+   "verified": false
+  },
+  {
+   "id": "multi_hit",
+   "how": "rapid short-range hit bullets in front of the player",
+   "uses_bullet": true,
+   "moves_player": false,
+   "hits_per_cast": 6,
+   "streams": 1,
+   "hook": "bullet_spawn",
+   "verified": false
+  },
+  {
+   "id": "rush",
+   "how": "dash at the locked-on or nearest enemy in front, then the hit (scripts.rs)",
+   "uses_bullet": true,
+   "moves_player": true,
+   "hits_per_cast": 1,
+   "streams": 1,
+   "hook": "player_move",
+   "verified": false
+  },
+  {
+   "id": "dash",
+   "how": "fast reposition with a trailing hit bullet",
+   "uses_bullet": true,
+   "moves_player": true,
+   "hits_per_cast": 1,
+   "streams": 1,
+   "hook": "player_move",
+   "verified": false
+  },
+  {
+   "id": "counter",
+   "how": "Raging Strike: vanish and reappear behind the target with a point-blank strike (the old wait-to-be-hit stance looked like nothing happened)",
+   "uses_bullet": true,
+   "moves_player": false,
+   "hits_per_cast": 1,
+   "streams": 1,
+   "hook": "damage_event",
+   "verified": false
+  },
+  {
+   "id": "aoe_self",
+   "how": "burst centred on the player",
+   "uses_bullet": true,
+   "moves_player": false,
+   "hits_per_cast": 2,
+   "streams": 1,
+   "hook": "bullet_spawn",
+   "verified": false
+  },
+  {
+   "id": "aoe_drop",
+   "how": "leap or rise into the air, hang, then dive onto the target with a large burst",
+   "uses_bullet": true,
+   "moves_player": true,
+   "hits_per_cast": 2,
+   "streams": 1,
+   "hook": "player_move",
+   "verified": false
+  },
+  {
+   "id": "ground_wave",
+   "how": "a line of bullets along the ground toward the target",
+   "uses_bullet": true,
+   "moves_player": false,
+   "hits_per_cast": 6,
+   "streams": 1,
+   "hook": "bullet_spawn",
+   "verified": false
+  }
+ ]
+}

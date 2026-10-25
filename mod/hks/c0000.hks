@@ -1,0 +1,35 @@
+------------------------------------------
+-- Elden Force: the player's behaviour script.
+-- Elden Ring's own player script is not part of Elden Force: at launch the mod copies it from the
+-- player's game files to c0000_er.hks next to this file, and this script runs it, then adds:
+--  * Animation canceling (Elden Force): once an attack is a quarter second in, pressing dodge cuts
+--    the rest of it short: a roll the way the stick points, or a backstep.
+--  * Air boost (from ELDEN VINS by mahku, used with his permission): hold L2 and press jump in the
+--    air to boost; resets on landing.
+--  * Body animations for Elden Force's own moves (double jump, air dash, slam, lunges, leaps, dives),
+--    asked for by the mod's DLL through marker SpEffects.
+------------------------------------------
+
+local here = debug.getinfo(1, "S").source:sub(2):match("(.*/)"):gsub("/", "\\")
+-- Both run through loadfile: code loaded this way sees the game's script functions (env, act, the
+-- ACTION_ARM_* numbers), which this file itself does not.
+-- the folder of these scripts (Elden Force writes its animation cues next to them)
+JR_ScriptDir = here
+local er_script = loadfile(here .. "c0000_er.hks")
+er_script()
+-- 1.2.0: Carian Combo Warriors (Nexus mods, used with its author's permission and credit) is the fighters'
+-- moveset: its player script runs alongside the game's, and jr_dispatch.lua sends each of the game's calls
+-- to theirs (fighters) or the game's own (Your Tarnished); the DLL picks with JR_UseCCW
+local dispatch = loadfile(here .. "jr_dispatch.lua")
+if dispatch ~= nil then
+    dispatch()
+    JR_SaveVanilla()
+    local ccw_script = loadfile(here .. "c0000_ccw.hks")
+    if ccw_script ~= nil then
+        ccw_script()
+        JR_SaveCCW()
+        JR_Dispatch()
+    end
+end
+local elden_force = loadfile(here .. "elden_force.lua")
+elden_force()

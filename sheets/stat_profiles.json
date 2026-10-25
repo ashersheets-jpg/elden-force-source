@@ -1,0 +1,66 @@
+{
+ "sheet": "stat_profiles",
+ "about": "Fighter archetypes applied as a resident SpEffect while that fighter is active. Values are multipliers on the Tarnished's own stats.",
+ "columns": {
+  "id": "key used by fighters.stat_profile",
+  "hp_mult": "max HP multiplier",
+  "fp_mult": "max FP (Ki) multiplier; 0.8.0: the same for every profile",
+  "stamina_mult": "max stamina multiplier",
+  "damage_taken_mult": "incoming damage multiplier",
+  "ki_regen_per_s": "FP regained per second (Ki charge); 0.8.0: the same for every profile so no fighter out-damages another",
+  "er_speffect": "SpEffectParam row repurposed in memory: the unused 'Area Scaling - (Unused)' rows 7210..7250",
+  "verified": "checked in game"
+ },
+ "rows": [
+  {
+   "id": "balanced",
+   "hp_mult": 2.0,
+   "fp_mult": 1.1,
+   "stamina_mult": 1.0,
+   "damage_taken_mult": 1.0,
+   "ki_regen_per_s": 2.75,
+   "er_speffect": 7210,
+   "verified": true
+  },
+  {
+   "id": "brawler",
+   "hp_mult": 2.3,
+   "fp_mult": 1.1,
+   "stamina_mult": 1.1,
+   "damage_taken_mult": 0.95,
+   "ki_regen_per_s": 2.75,
+   "er_speffect": 7220,
+   "verified": true
+  },
+  {
+   "id": "speedster",
+   "hp_mult": 2.0,
+   "fp_mult": 1.1,
+   "stamina_mult": 1.2,
+   "damage_taken_mult": 1.0,
+   "ki_regen_per_s": 2.75,
+   "er_speffect": 7230,
+   "verified": false
+  },
+  {
+   "id": "tank",
+   "hp_mult": 2.6,
+   "fp_mult": 1.1,
+   "stamina_mult": 1.0,
+   "damage_taken_mult": 0.85,
+   "ki_regen_per_s": 2.75,
+   "er_speffect": 7240,
+   "verified": true
+  },
+  {
+   "id": "caster",
+   "hp_mult": 1.9,
+   "fp_mult": 1.1,
+   "stamina_mult": 1.0,
+   "damage_taken_mult": 1.05,
+   "ki_regen_per_s": 2.75,
+   "er_speffect": 7250,
+   "verified": false
+  }
+ ]
+}
