@@ -230,4 +230,11 @@ fn main() {
 
     let out = std::path::Path::new(&std::env::var("OUT_DIR").unwrap()).join("sheets.rs");
     std::fs::write(out, o).unwrap();
+
+    embed_version_info(&[
+        VersionTarget { link: "cdylib", description: "Elden Force: Shonen Jump heroes for Elden Ring (loaded by ModEngine2)", file: "jumpring.dll", program: false },
+        VersionTarget { link: "bin=elden_force_prepare", description: "Elden Force: builds the fighters' outfits from your game files", file: "elden_force_prepare.exe", program: true },
+    ]);
 }
+
+include!("../version_info.rs");

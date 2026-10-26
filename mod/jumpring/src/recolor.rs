@@ -284,10 +284,54 @@ pub fn start_early() {
         WORKER.with(|w| w.set(true));
         // the log opens on the boot thread; wait for it so these lines are kept
         std::thread::sleep(std::time::Duration::from_millis(200));
+        warn_mismatched_prepare();
         log!("recolor: making the fighters' outfits before the game loads its files ({} pieces)", jobs.len());
         make_all(jobs);
+        #[cfg(not(feature = "lab"))]
+        restart_after_setup();
         DONE.store(true, Ordering::Release);
     });
+}
+
+/// 2.0.4: 2.0.3 shipped a prepare step from an older build than the DLL; the two disagreed on the outfits, so every
+/// launch built them twice, the second time inside the game. Say so in the log if the two files' builds differ.
+fn warn_mismatched_prepare() {
+    let Some(dir) = mod_dir().and_then(|d| d.parent().map(|p| p.join("jumpring"))) else { return };
+    let when = |name: &str| std::fs::metadata(dir.join(name)).and_then(|m| m.modified()).ok();
+    if let (Some(dll), Some(prep)) = (when("jumpring.dll"), when("elden_force_prepare.exe")) {
+        let apart = dll.duration_since(prep).or_else(|_| prep.duration_since(dll)).map(|d| d.as_secs()).unwrap_or(0);
+        if apart > 600 {
+            log!("recolor: WARNING elden_force_prepare.exe and jumpring.dll are from different builds ({apart} s apart)");
+        }
+    }
+}
+
+/// 2.0.4: when the outfits, moves and title screen had to be made inside the game (no prepare step ran: the Nexus
+/// package's first launch, or after an update), finish the one-time setup and close, so the game never loads right
+/// after a build (a launch straight after one once crashed on the title screen and once froze loading). Asked at most
+/// once in ten minutes, so a build that keeps coming back can never stop the game from starting.
+#[cfg(not(feature = "lab"))]
+fn restart_after_setup() {
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, TerminateProcess};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONINFORMATION, MB_OK, MB_SETFOREGROUND, MB_TOPMOST, MessageBoxW};
+    let marker = crate::log::dir().join("setup-restart.txt");
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let last = std::fs::read_to_string(&marker).ok().and_then(|s| s.trim().parse::<u64>().ok()).unwrap_or(0);
+    if now.saturating_sub(last) < 600 {
+        log!("recolor: setup finished again within ten minutes: loading the game this time");
+        return;
+    }
+    let _ = std::fs::write(&marker, now.to_string());
+    log!("recolor: one-time setup finished: asking the player to start the game again");
+    let wide = |s: &str| s.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+    let text = wide(
+        "Elden Force finished its one-time setup: it built the fighters' outfits and moves from your own game files.\n\n\
+         The game will now close. Please start Elden Force again (with Steam open) to play.",
+    );
+    unsafe {
+        MessageBoxW(std::ptr::null_mut(), text.as_ptr(), wide("Elden Force").as_ptr(), MB_OK | MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND);
+        TerminateProcess(GetCurrentProcess(), 0);
+    }
 }
 
 fn make_all(jobs: Vec<Job>) {
