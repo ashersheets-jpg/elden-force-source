@@ -1,0 +1,59 @@
+# Builds Elden Force's three programs from this repository on GitHub's own Windows machines, and publishes a signed
+# build-provenance attestation for each file. Anyone can then check that a jumpring.dll (or either .exe) in a release
+# download was built here, from this source, with:
+#   gh attestation verify jumpring.dll --repo ashersheets-jpg/elden-force-source
+name: Build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust (stable, MSVC)
+        run: |
+          rustup toolchain install stable --profile minimal --target x86_64-pc-windows-msvc
+          rustup default stable
+          rustc --version
+
+      - name: Build the mod (jumpring.dll, elden_force_prepare.exe)
+        working-directory: mod/jumpring
+        run: cargo build --release --locked
+
+      - name: Build the starter (elden_force_start.exe)
+        working-directory: mod/launcher
+        run: cargo build --release --locked
+
+      - name: Collect and hash
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory out | Out-Null
+          Copy-Item mod/jumpring/target/release/jumpring.dll, mod/jumpring/target/release/elden_force_prepare.exe, mod/launcher/target/release/elden_force_start.exe out/
+          Get-ChildItem out | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } | Tee-Object out/SHA256SUMS.txt
+          "### SHA-256" >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+          Get-Content out/SHA256SUMS.txt >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            out/jumpring.dll
+            out/elden_force_prepare.exe
+            out/elden_force_start.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: elden-force-binaries-${{ github.ref_name }}
+          path: out/
