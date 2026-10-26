@@ -37,4 +37,18 @@ Outputs:
 - `mod/launcher/target/release/elden_force_start.exe`
 
 In the download they sit at `modengine2/jumpring/jumpring.dll`, `modengine2/jumpring/elden_force_prepare.exe` and
-`modengine2/elden_force_start.exe`. (Builds are not bit-for-bit identical to the released files: Rust embeds build paths.)
+`modengine2/elden_force_start.exe`. (Your own builds are not bit-for-bit identical to the released files: Rust embeds
+build paths.)
+
+## Checking a download against this source
+
+GitHub builds the three programs from this repository on its own Windows machines (`.github/workflows/build.yml`),
+lists their SHA-256 hashes in each run's summary, and publishes a signed build-provenance attestation for each file.
+From 2.0.5 on, the released files are the ones GitHub built. To check a file from a download, install the GitHub CLI
+and run:
+
+```
+gh attestation verify jumpring.dll --repo ashersheets-jpg/elden-force-source
+```
+
+It confirms that the file was built by this repository's workflow, and from which commit.
