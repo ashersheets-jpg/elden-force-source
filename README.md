@@ -8,6 +8,19 @@ code is MIT licensed (see LICENSE).
 The other executables in the download are ModEngine2's own (https://github.com/soulsmods/ModEngine2, MIT) and Microsoft's
 Visual C++ runtime DLLs.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+(Applied for in October 2026; until the project is approved, releases are unsigned. Every release's programs are built
+by GitHub Actions from this repository, see "Checking a download against this source" below.)
+
+Team roles:
+- Committers and reviewers: [Asher Sheets](https://github.com/ashersheets-jpg)
+- Approvers: [Asher Sheets](https://github.com/ashersheets-jpg)
+
+Privacy policy: this program will not transfer any information to other networked systems unless specifically requested
+by the user or the person installing or operating it.
+
 ## What's here
 
 - `mod/jumpring`: the mod (Rust). `src/bin/prepare.rs` is `elden_force_prepare.exe`.
