@@ -17,19 +17,79 @@ local here = debug.getinfo(1, "S").source:sub(2):match("(.*/)"):gsub("/", "\\")
 JR_ScriptDir = here
 local er_script = loadfile(here .. "c0000_er.hks")
 er_script()
+-- 2.0.5: the game's own functions that elden_force.lua wraps, as the game's script left them (plain global
+-- assignments: no _G in this script engine), so Carian Combo Warriors can be put underneath them later
+JR_RAW = {
+    ExecAttack = ExecAttack,
+    GetEvasionRequest = GetEvasionRequest,
+    AttackCommonFunction = AttackCommonFunction,
+    GetAttackRequest = GetAttackRequest,
+    ExecFallStart = ExecFallStart,
+    ExecEvent = ExecEvent,
+    ExecEventAllBody = ExecEventAllBody,
+    ExecEventNoReset = ExecEventNoReset,
+    ExecEventSync = ExecEventSync,
+    ExecEventSyncNoReset = ExecEventSyncNoReset,
+    ExecEventHalfBlend = ExecEventHalfBlend,
+    ExecEventHalfBlendNoReset = ExecEventHalfBlendNoReset,
+    Update = Update,
+}
+local function restore_raw()
+    ExecAttack = JR_RAW.ExecAttack
+    GetEvasionRequest = JR_RAW.GetEvasionRequest
+    AttackCommonFunction = JR_RAW.AttackCommonFunction
+    GetAttackRequest = JR_RAW.GetAttackRequest
+    ExecFallStart = JR_RAW.ExecFallStart
+    ExecEvent = JR_RAW.ExecEvent
+    ExecEventAllBody = JR_RAW.ExecEventAllBody
+    ExecEventNoReset = JR_RAW.ExecEventNoReset
+    ExecEventSync = JR_RAW.ExecEventSync
+    ExecEventSyncNoReset = JR_RAW.ExecEventSyncNoReset
+    ExecEventHalfBlend = JR_RAW.ExecEventHalfBlend
+    ExecEventHalfBlendNoReset = JR_RAW.ExecEventHalfBlendNoReset
+    Update = JR_RAW.Update
+end
+local function elden_force()
+    local f = loadfile(here .. "elden_force.lua")
+    f()
+end
+elden_force()
 -- 1.2.0: Carian Combo Warriors (Nexus mods, used with its author's permission and credit) is the fighters'
 -- moveset: its player script runs alongside the game's, and jr_dispatch.lua sends each of the game's calls
--- to theirs (fighters) or the game's own (Your Tarnished); the DLL picks with JR_UseCCW
-local dispatch = loadfile(here .. "jr_dispatch.lua")
-if dispatch ~= nil then
+-- to theirs (fighters) or the game's own (Your Tarnished); the DLL picks with JR_UseCCW.
+-- 2.0.5: loaded on the character's first update, and only for the player: every character on this script (Stands,
+-- summoned villains) compiled its 1.25 MB too, and after many summons the scripts' memory ran out and the game
+-- closed itself (the crash players saw about ten minutes in). The game's env() can't be asked while this file
+-- loads (that crashed the game), but can be on an update. Then it is loaded in the 1.2.0 order: the game's
+-- functions, the dispatcher over theirs and the game's, then elden_force.lua's additions over that.
+JR_CCW_ON = false
+function JR_UseCCW(on)
+    JR_CCW_ON = on
+end
+local first_update = Update
+local decided = false
+function Update()
+    -- (once only, even if the game kept calling this first function: after that it hands on to the Update now in place)
+    if decided then
+        return Update()
+    end
+    decided = true
+    if env(IsCOMPlayer) == TRUE then
+        Update = first_update
+        return first_update()
+    end
+    local dispatch = loadfile(here .. "jr_dispatch.lua")
+    local ccw_script = loadfile(here .. "c0000_ccw.hks")
+    if dispatch == nil or ccw_script == nil then
+        Update = first_update
+        return first_update()
+    end
+    restore_raw()
     dispatch()
     JR_SaveVanilla()
-    local ccw_script = loadfile(here .. "c0000_ccw.hks")
-    if ccw_script ~= nil then
-        ccw_script()
-        JR_SaveCCW()
-        JR_Dispatch()
-    end
+    ccw_script()
+    JR_SaveCCW()
+    JR_Dispatch()
+    elden_force()
+    return Update()
 end
-local elden_force = loadfile(here .. "elden_force.lua")
-elden_force()

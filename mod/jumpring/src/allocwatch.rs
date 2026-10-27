@@ -91,6 +91,24 @@ pub fn sample(tag: &str) {
     crate::log!("allocwatch: [{tag}] 4101 used {} in {} blocks; all {} allocators {} used", ai.0, ai.1, now.len(), total);
 }
 
+/// lab (2.0.6): every allocator now, written at once (from the exception handler: the game may quit right after)
+pub fn dump_now(tag: &str) {
+    let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+    if unsafe { std::slice::from_raw_parts((base + LOCK_RVA) as *const u8, 12) } != LOCK_START {
+        return;
+    }
+    let Some(now) = look(base) else { return };
+    let mut v: Vec<(&usize, &Look)> = now.iter().collect();
+    v.sort_by(|a, b| (b.1.size as f64 / b.1.cap.max(1) as f64).partial_cmp(&(a.1.size as f64 / a.1.cap.max(1) as f64)).unwrap());
+    let mut msg = format!("allocwatch: [{tag}] fullest first (id cap size backing blocks)");
+    for (a, l) in v.into_iter().take(12) {
+        let short: String = l.name.replace("?$HeapAllocator@V?$DLDynamicHeap@V?$", "").replace("@DLKR@@", "").chars().take(60).collect();
+        msg += &format!("
+  {a:#x} {} {} | {} {} {} {}", l.id, short, l.cap, l.size, l.backing, l.count);
+    }
+    crate::log::write_now(&msg);
+}
+
 pub fn start() {
     let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
     let ok = unsafe { std::slice::from_raw_parts((base + LOCK_RVA) as *const u8, 12) } == LOCK_START

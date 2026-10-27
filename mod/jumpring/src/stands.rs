@@ -307,6 +307,8 @@ fn set_look(idx: usize, flare: f32) -> bool {
 const GROUP_TRIGGER: i32 = 232000;
 const GROUP_ROWS: [u32; 3] = [23200000, 23200001, 23200002];
 const SPIRIT_ROW: u32 = 25900000;
+/// 2.0.6: the Stand's spirits' think row: none (group_rows)
+const STAND_THINK: i32 = 0;
 static SAVED: Mutex<Option<Vec<eldenring::param::BUDDY_PARAM_ST>>> = Mutex::new(None);
 
 fn group_rows(on: bool) {
@@ -326,9 +328,24 @@ fn group_rows(on: bool) {
         let alone = crate::log::dir().join("noafter.on").exists();
         #[cfg(not(feature = "lab"))]
         let alone = false;
+        // 2.0.6 (the long-session exit, lab dumps 2026-10-27: the enemies' AI scripts' heap (allocator 4101) runs out as a
+        // villain's AI starts, only with villains and a Stand both about): the Stand's three spirits never use their AI (the
+        // DLL drives them through their behaviour script, kept "not thinking"), but each was made with the human spirit's
+        // whole AI script, and those scripts' memory was what ran out (lab vilonly_dio: 3 of 3 runs quit at the 12th or 13th
+        // villain; with no AI (think row 0) all 15 villains and 25 minutes, and the Stand's moves all still played). So they
+        // get none. Lab (standthink.txt beside the log): another think row to compare.
+        #[cfg(feature = "lab")]
+        let think: Option<i32> = std::fs::read_to_string(crate::log::dir().join("standthink.txt")).ok().and_then(|s| s.trim().parse().ok()).or(Some(STAND_THINK));
+        #[cfg(not(feature = "lab"))]
+        let think: Option<i32> = Some(STAND_THINK);
+        #[cfg(feature = "lab")]
+        log!("stands: the spirit's npc {} think {} (given think {think:?})", src.npc_param_id(), src.npc_think_param_id());
         for (k, row) in GROUP_ROWS.into_iter().enumerate() {
             if let Some(b) = repo.get_mut::<eldenring::cs::BuddyParam>(row) {
                 *b = src.clone();
+                if let Some(t) = think {
+                    b.set_npc_think_param_id(t);
+                }
                 b.set_trigger_sp_effect_id(if alone && k > 0 { -1 } else { GROUP_TRIGGER });
                 b.set_x_offset([0.0, 0.8, -0.8][k]);
                 b.set_z_offset(-1.0);

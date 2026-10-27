@@ -128,7 +128,85 @@ unsafe extern "C" fn hk_realloc(l: usize, block: usize, osize: usize, nsize: usi
     r
 }
 
+/// 2.0.6 (luamem.on): only the bytes. Live Lua bytes per Lua state and in all, logged every 20 s, and every allocation
+/// the game's Lua allocator refused (the long-session self-exit is one of those, uncaught), with its size.
+static MEM: Mutex<Option<HashMap<usize, i64>>> = Mutex::new(None);
+static TOTAL: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+static PEAK: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+static REFUSED: AtomicU64 = AtomicU64::new(0);
+
+unsafe extern "C" fn hk_mem(l: usize, block: usize, osize: usize, nsize: usize) -> usize {
+    let orig: Realloc = unsafe { std::mem::transmute(HOOK.get().unwrap().trampoline()) };
+    let r = unsafe { orig(l, block, osize, nsize) };
+    let old = if block != 0 { osize as u32 as i64 } else { 0 };
+    if nsize != 0 && r == 0 {
+        let n = REFUSED.fetch_add(1, Ordering::Relaxed);
+        if n < 20 {
+            let mine = MEM.lock().ok().and_then(|g| g.as_ref().and_then(|m| m.get(&l).copied())).unwrap_or(0);
+            crate::log::write_now(&format!(
+                "LUAMEM: allocation REFUSED: {osize} -> {nsize} bytes for Lua state {l:#x} (holds {mine}); {} live in all, peak {}",
+                TOTAL.load(Ordering::Relaxed),
+                PEAK.load(Ordering::Relaxed)
+            ));
+        }
+        return r;
+    }
+    let delta = if nsize == 0 { -old } else { nsize as u32 as i64 - old };
+    let t = TOTAL.fetch_add(delta, Ordering::Relaxed) + delta;
+    PEAK.fetch_max(t, Ordering::Relaxed);
+    if let Ok(mut g) = MEM.lock() {
+        if let Some(m) = g.as_mut() {
+            *m.entry(l).or_insert(0) += delta;
+        }
+    }
+    r
+}
+
+fn start_mem(target: *const (), base: usize) {
+    *MEM.lock().unwrap() = Some(HashMap::new());
+    match unsafe { RawDetour::new(target, hk_mem as *const ()) } {
+        Ok(d) => {
+            let _ = HOOK.set(d);
+            if unsafe { HOOK.get().unwrap().enable() }.is_ok() {
+                crate::log!("luamem: counting Lua bytes (eldenring.exe at {base:#x})");
+                std::thread::spawn(|| loop {
+                    std::thread::sleep(std::time::Duration::from_secs(20));
+                    let (states, top) = MEM
+                        .lock()
+                        .ok()
+                        .and_then(|mut g| {
+                            g.as_mut().map(|m| {
+                                m.retain(|_, v| *v > 0);
+                                let mut v: Vec<(usize, i64)> = m.iter().map(|(k, v)| (*k, *v)).collect();
+                                v.sort_by(|a, b| b.1.cmp(&a.1));
+                                let top: Vec<String> = v.iter().take(6).map(|(k, b)| format!("{k:#x}:{}k", b / 1024)).collect();
+                                (m.len(), top.join(" "))
+                            })
+                        })
+                        .unwrap_or((0, String::new()));
+                    crate::log!(
+                        "luamem: {} KB live, peak {} KB, {states} states, {} refused; biggest {top}",
+                        TOTAL.load(Ordering::Relaxed) / 1024,
+                        PEAK.load(Ordering::Relaxed) / 1024,
+                        REFUSED.load(Ordering::Relaxed)
+                    );
+                });
+            }
+        }
+        Err(e) => crate::log!("luamem: could not hook ({e})"),
+    }
+}
+
 pub fn start() {
+    let mem = crate::log::dir().join("luamem.on");
+    if mem.exists() {
+        let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+        let target = (base + REALLOC_RVA) as *const ();
+        if unsafe { std::slice::from_raw_parts(target as *const u8, PROLOGUE.len()) } == PROLOGUE {
+            start_mem(target, base);
+        }
+        return;
+    }
     let flag = crate::log::dir().join("luahook.on");
     if !flag.exists() {
         crate::log!("luahook: off (no {})", flag.display());

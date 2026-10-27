@@ -54,6 +54,8 @@ pub use prepare::prepare_main;
 mod survey;
 pub use survey::{ccw_dump, ccw_dump_many, ccw_reg, ccw_survey, dcx_file};
 mod recolor;
+mod steam;
+mod watchdog;
 mod rescue;
 mod save;
 #[cfg(feature = "lab")]
@@ -66,6 +68,8 @@ mod luahook;
 mod veh;
 #[cfg(feature = "lab")]
 mod allocwatch;
+#[cfg(feature = "lab")]
+mod exitwatch;
 mod portraits;
 mod select_screen;
 mod sheets;
@@ -90,6 +94,8 @@ pub unsafe extern "C" fn DllMain(hmodule: usize, reason: u32) -> bool {
     if reason != 1 {
         return true;
     }
+    watchdog::note_main_thread();
+    steam::install();
     recolor::start_early();
     // (lab, 2.0.3: JR_EARLY_MAP=1 asks the library for the task runner at once, the earliest a player's PC could: does it
     // give up, as in the players' "CSTask never appeared" logs?)
@@ -172,6 +178,8 @@ fn boot(hmodule: usize) {
     veh::start();
     #[cfg(feature = "lab")]
     allocwatch::start();
+    #[cfg(feature = "lab")]
+    exitwatch::start();
     audio::start();
 
     singletons_named();
@@ -230,6 +238,7 @@ fn boot(hmodule: usize) {
 
     cs_task.run_recurring(
         move |_: &FD4TaskData| {
+            watchdog::beat();
             let _frame = perf::span("frame");
             // 2.0.3 cinematic mode: Home hides our HUD (overlay::CINEMATIC)
             if eldenring::util::input::is_key_pressed(0x24) {
@@ -815,6 +824,7 @@ fn boot(hmodule: usize) {
         CSTaskGroupIndex::FrameBegin,
     );
     log!("boot: frame task registered");
+    watchdog::start();
 }
 
 /// The enemy the swing button grabs and pulls in for an attack: one locked on within 14 m (0.12.0: a

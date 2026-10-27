@@ -80,6 +80,8 @@ fn tell_of(art: Art) -> (f32, [f32; 4], &'static str) {
 /// While a boss winds up an art its animation slows to this (it gathers itself), and while it is open
 /// to a counter, to this.
 const TELL_SPEED: f32 = 0.45;
+/// 2.0.6: how long the switch stays off for the player's death to start (see guard_kills)
+const PLAYER_DEATH_WAIT: Duration = Duration::from_secs(8);
 const EXPOSED_SPEED: f32 = 0.55;
 pub const EXPOSED_FOR: f32 = 2.6;
 
@@ -883,8 +885,10 @@ impl Bosses {
                 let c = &mut p.chr_ins;
                 let hp = c.modules.data.hp;
                 let held = crate::movement::no_dead_mask() != 0 || std::env::var_os("JR_GOD").is_some();
+                let dying = self.killing.iter().any(|(key, _)| *key == me);
                 if let Some(last) = self.others_last.insert(me, hp) {
-                    if self.enemy_guard && !held && hp == 1 && last > 1 {
+                    // (2.0.6: left at 1 HP by the switch and not already dying: that blow was their death too)
+                    if self.enemy_guard && !held && hp == 1 && (last > 1 || !dying) {
                         log!("bosses: a blow that would have killed the player: they die");
                         c.modules.data.hp = 0;
                         self.killing.push((me, now));
@@ -895,13 +899,27 @@ impl Bosses {
             self.others_last.clear();
         }
         // a death is under way once the game has marked it (or after a moment, whatever happens)
+        // 2.0.6 (a player's freeze report: "they die", then DIO stood at 1 HP for a minute, unkillable): the game can take
+        // longer than 1.5 s to start the player's death (mid-move, mid-air); with the switch back on it put them at 1 HP
+        // for good, and a blow from 1 HP never counts as lethal. The player's death keeps the switch off until the game
+        // marks it (their health held at 0 meanwhile), for up to PLAYER_DEATH_WAIT.
+        if self.killing.iter().any(|(key, _)| *key == me) {
+            if let Some(p) = unsafe { WorldChrMan::instance_mut() }.ok().and_then(|w| w.main_player.as_mut()) {
+                if !p.chr_ins.chr_flags1c5.death_flag() && p.chr_ins.modules.data.hp > 0 && crate::movement::no_dead_mask() == 0 {
+                    p.chr_ins.modules.data.hp = 0;
+                }
+            }
+        }
         self.killing.retain(|(key, at)| {
-            let dead = if *key == me {
-                wcm.main_player.as_ref().is_none_or(|p| p.chr_ins.chr_flags1c5.death_flag())
+            let (dead, wait) = if *key == me {
+                (wcm.main_player.as_ref().is_none_or(|p| p.chr_ins.chr_flags1c5.death_flag()), PLAYER_DEATH_WAIT)
             } else {
-                by_addr(*key).is_none_or(|c| c.chr_flags1c5.death_flag())
+                (by_addr(*key).is_none_or(|c| c.chr_flags1c5.death_flag()), Duration::from_millis(1500))
             };
-            !dead && now.duration_since(*at) < Duration::from_millis(1500)
+            if !dead && *key == me && now.duration_since(*at) >= wait {
+                log!("bosses: the player's death never started ({} s): the switch goes back on", wait.as_secs());
+            }
+            !dead && now.duration_since(*at) < wait
         });
         let want = on && self.killing.is_empty();
         if want != self.enemy_guard {

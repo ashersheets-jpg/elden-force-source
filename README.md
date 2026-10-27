@@ -57,7 +57,7 @@ build paths.)
 
 GitHub builds the three programs from this repository on its own Windows machines (`.github/workflows/build.yml`),
 lists their SHA-256 hashes in each run's summary, and publishes a signed build-provenance attestation for each file.
-From 2.0.5 on, the released files are the ones GitHub built. To check a file from a download, install the GitHub CLI
+From 2.0.6 on, the released jumpring.dll is the one GitHub built. (Since 2.0.5 the Melty download has only jumpring.dll: Melty starts the game through its own ModEngine2, and the outfits are built inside the game.) To check a file from a download, install the GitHub CLI
 and run:
 
 ```

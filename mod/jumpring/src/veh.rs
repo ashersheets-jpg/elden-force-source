@@ -21,7 +21,7 @@ fn stack_base() -> usize {
     v
 }
 
-fn module_of(a: usize) -> Option<String> {
+pub(crate) fn module_of(a: usize) -> Option<String> {
     for (name, w) in [("er", windows_sys::w!("eldenring.exe")), ("jr", windows_sys::w!("jumpring.dll")), ("ntdll", windows_sys::w!("ntdll.dll")), ("kb", windows_sys::w!("KERNELBASE.dll")), ("d3d12core", windows_sys::w!("D3D12Core.dll"))] {
         let b = unsafe { GetModuleHandleW(w) } as usize;
         if b == 0 {
@@ -39,9 +39,44 @@ fn module_of(a: usize) -> Option<String> {
     None
 }
 
+static LUA_THROWS: AtomicU32 = AtomicU32::new(0);
+
 unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
     let rec = unsafe { &*(*info).ExceptionRecord };
     let code = rec.ExceptionCode as u32;
+    // 2.0.6: a C++ throw out of luaM_realloc_ (its out-of-memory error, luaD_throw, which nothing catches and the game then
+    // quits): its stack, and every allocator as it is now
+    if code == 0xE06D7363 && LUA_THROWS.fetch_add(1, Ordering::Relaxed) < 6 {
+        let ctx = unsafe { &*(*info).ContextRecord };
+        let sp = ctx.Rsp as usize;
+        let top = stack_base();
+        let end = if sp < top && top - sp < 0x100_0000 { (sp + 0x2000).min(top) } else { sp };
+        let er = unsafe { GetModuleHandleW(windows_sys::w!("eldenring.exe")) } as usize;
+        let mut lua = false;
+        let mut frames = String::new();
+        let mut n = 0;
+        for k in 0..(end - sp) / 8 {
+            let v = unsafe { ((sp + k * 8) as *const usize).read_volatile() };
+            // (inside luaM_realloc_ (er+0x203b360): its out-of-memory throw, not the scripts' ordinary pcall'd errors)
+            if v >= er + 0x203b360 && v < er + 0x203b460 {
+                lua = true;
+            }
+            if let Some(m) = module_of(v) {
+                if n < 40 {
+                    frames += &format!(" {m}");
+                    n += 1;
+                }
+            }
+        }
+        if lua {
+            crate::log::write_now(&format!("VEH: Lua threw (C++ exception) on thread {} params {:x?}
+  stack:{frames}", unsafe { windows_sys::Win32::System::Threading::GetCurrentThreadId() }, &rec.ExceptionInformation[..(rec.NumberParameters as usize).min(4)]));
+            crate::allocwatch::dump_now("at the Lua throw");
+        } else {
+            LUA_THROWS.fetch_sub(1, Ordering::Relaxed);
+        }
+        return 0;
+    }
     // (routine: C++ throws, debugger prints, thread names, guard pages the game's own code uses)
     if matches!(code, 0xE06D7363 | 0x40010006 | 0x4001000A | 0x406D1388 | 0x80000001) || code < 0x80000000 {
         return 0;

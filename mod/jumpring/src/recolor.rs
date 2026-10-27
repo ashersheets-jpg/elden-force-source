@@ -287,8 +287,6 @@ pub fn start_early() {
         warn_mismatched_prepare();
         log!("recolor: making the fighters' outfits before the game loads its files ({} pieces)", jobs.len());
         make_all(jobs);
-        #[cfg(not(feature = "lab"))]
-        restart_after_setup();
         DONE.store(true, Ordering::Release);
     });
 }
@@ -306,11 +304,17 @@ fn warn_mismatched_prepare() {
     }
 }
 
+/// 2.0.5: no longer used. Melty players now get the build here, inside the game, on the first launch (2.0.5 ships no
+/// programs of its own: Windows' Smart App Control and some antivirus programs refused 2.0.4's unsigned
+/// elden_force_start.exe and elden_force_prepare.exe), and the game simply carries on loading after it. Players' crash
+/// reports showed the build was not what crashed: 2.0.3 built inside the game on every launch, 2.0.4 never did, and
+/// 2.0.4 crashed at loading no less often.
 /// 2.0.4: when the outfits, moves and title screen had to be made inside the game (no prepare step ran: the Nexus
 /// package's first launch, or after an update), finish the one-time setup and close, so the game never loads right
 /// after a build (a launch straight after one once crashed on the title screen and once froze loading). Asked at most
 /// once in ten minutes, so a build that keeps coming back can never stop the game from starting.
 #[cfg(not(feature = "lab"))]
+#[allow(dead_code)]
 fn restart_after_setup() {
     use windows_sys::Win32::System::Threading::{GetCurrentProcess, TerminateProcess};
     use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONINFORMATION, MB_OK, MB_SETFOREGROUND, MB_TOPMOST, MessageBoxW};
