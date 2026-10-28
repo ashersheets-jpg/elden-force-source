@@ -2348,6 +2348,11 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
             // with a real one); "kill0" HP set to 0 (which never starts the game's death)
             "kill" => crate::bosses::kill_player(&mut player.chr_ins),
             "kill0" => player.chr_ins.modules.data.hp = 0,
+            // 2.0.6: "hurt <hp>": HP lost as from a hit (rescue.rs: a fall in a fight counts only after one)
+            "hurt" => {
+                let d = &mut player.chr_ins.modules.data;
+                d.hp = (d.hp - rest.trim().parse::<i32>().unwrap_or(50)).max(1);
+            }
             // 2.0.6: "hp1": what a lethal blow does under a "can't die" switch (the game holds HP at 1)
             "hp1" => player.chr_ins.modules.data.hp = 1,
             // 2.0.6: "deathrow <hp rate> <hp point> <endurance> <interval>": the death effect's row set (bosses::DEATH_EFFECT)

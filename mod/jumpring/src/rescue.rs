@@ -25,11 +25,15 @@ use crate::motion;
 const AFTER_LOAD: Duration = Duration::from_secs(20);
 /// A drop this long ends a fighter where it lands (a swing's highest release is about 25 m up).
 const LETHAL_DROP: f32 = 60.0;
-/// 2.0.6: in a boss or villain fight, landing this far below the ground they last stood on (knocked off the
-/// arena's edge) ends them, as in Elden Ring: Muscular punched DIO off Margit's bridge onto a ledge 44 m down,
+/// 2.0.6: in a boss or villain fight, landing this far below the ground they last stood on, after falling that far
+/// (knocked off the arena's edge), ends them, as in Elden Ring: Muscular punched DIO off Margit's bridge onto a ledge 44 m down,
 /// out of everyone's reach, alive and out of the fight for good. (Measured ground to ground: a flight or a
 /// swing that comes back down onto the arena is no drop at all.)
 const FIGHT_DROP: f32 = 25.0;
+/// 2.0.6 (the user: players must never lose runes to a fall their fighter survived in earlier versions): only a fall
+/// an enemy's hit began counts: the ground left while still reeling from a hit (Elden Ring's damage animations, 5xxx:
+/// DIO went over the bridge's edge in 5480), or a hit taken in the air. A jump of the player's own never does.
+const DAMAGE_ANIMS: std::ops::Range<i32> = 5000..6000;
 
 #[derive(Default)]
 pub struct Rescue {
@@ -55,6 +59,10 @@ pub struct Rescue {
     /// the last ground they stood settled on (tile, block height), and last frame's if on the ground
     ground: Option<(eldenring::cs::BlockId, f32)>,
     last_landed: Option<(eldenring::cs::BlockId, f32)>,
+    /// HP last frame, the last hit taken (HP lost), and whether this time in the air began with (or met) a hit
+    last_hp: i32,
+    last_hit: Option<Instant>,
+    hit_fall: bool,
 }
 
 impl Rescue {
@@ -118,7 +126,10 @@ impl Rescue {
                 }
             }
             self.last_y = Some(pos.1);
-        } else {
+        }
+        // (this fall's free drop, for the fight rule below, before a landing clears it)
+        let fell = self.drop;
+        if !falling {
             if landed && self.drop > LETHAL_DROP && !just_loaded && !self.dying {
                 self.die(player, &format!("a {:.0} m fall", self.drop));
                 return;
@@ -128,6 +139,12 @@ impl Rescue {
                 self.last_y = None;
             }
         }
+        // hits taken (HP lost while alive)
+        let hp = player.chr_ins.modules.data.hp;
+        if hp > 0 && hp < self.last_hp {
+            self.last_hit = Some(now);
+        }
+        self.last_hp = hp;
         // knocked off a fight's arena: ground to ground, how far down they came
         let (block, by) = (player.current_block_id, player.block_position.y);
         if landed {
@@ -138,11 +155,14 @@ impl Rescue {
                     _ => self.below_ground,
                 };
                 if down.abs() > 8.0 {
-                    log!("rescue: landed {down:.1} m below the ground they left (in a fight {})", in_fight());
+                    log!("rescue: landed {down:.1} m below the ground they left, {fell:.1} m of it falling (in a fight {}, after a hit {})", in_fight(), self.hit_fall);
                 }
                 self.below_ground = 0.0;
                 self.air_y = None;
-                if down > FIGHT_DROP && !just_loaded && !self.dying && in_fight() {
+                // (and that far in free fall too: a flight or a swing down a sloped arena (Radahn's) to lower ground is no
+                // fall, nor a flight that stops high over the arena and drops back onto it)
+                let hit = std::mem::take(&mut self.hit_fall);
+                if down > FIGHT_DROP && fell > FIGHT_DROP && hit && !just_loaded && !self.dying && in_fight() {
                     self.die(player, &format!("landed {down:.0} m below the fight's ground"));
                     return;
                 }
@@ -155,6 +175,11 @@ impl Rescue {
             self.last_landed = Some((block, by));
         } else {
             self.last_landed = None;
+            // (the ground left reeling from a hit (knocked over an edge), or a hit in the air)
+            let reeling = DAMAGE_ANIMS.contains(&crate::movement::current_anim(player));
+            if (self.air_y.is_none() && reeling) || self.last_hit.is_some_and(|t| now.duration_since(t) <= Duration::from_millis(50)) {
+                self.hit_fall = true;
+            }
             if let Some((lb, lby, ly)) = self.air_y {
                 if lb == block {
                     self.below_ground += lby - by;
