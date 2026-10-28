@@ -67,6 +67,8 @@ mod luahook;
 #[cfg(feature = "lab")]
 mod veh;
 #[cfg(feature = "lab")]
+mod d3ddebug;
+#[cfg(feature = "lab")]
 mod allocwatch;
 #[cfg(feature = "lab")]
 mod exitwatch;
@@ -161,6 +163,9 @@ fn boot(hmodule: usize) {
     log::init();
     // A panic aborts the game (panic = abort): write what and where to the log first.
     std::panic::set_hook(Box::new(|info| log::write_now(&format!("PANIC: {info}"))));
+    // (lab, the DX12 crash hunt: d3d12debug.on: the debug layer and DRED, before the game makes its device)
+    #[cfg(feature = "lab")]
+    d3ddebug::enable();
     save::redirect();
     questpath::load();
     log!("JumpRing {} loading ({} fighters, {} abilities)", env!("CARGO_PKG_VERSION"), sheets::FIGHTERS.len(), sheets::ABILITIES.len());
@@ -174,6 +179,11 @@ fn boot(hmodule: usize) {
     labheap::start();
     #[cfg(feature = "lab")]
     luahook::start();
+    #[cfg(feature = "lab")]
+    if log::dir().join("olddeath.on").exists() {
+        bosses::OLD_DEATH.store(true, Ordering::Relaxed);
+        log!("lab: olddeath.on: 2.0.5's handling of the player's death");
+    }
     #[cfg(feature = "lab")]
     veh::start();
     #[cfg(feature = "lab")]
@@ -303,6 +313,7 @@ fn boot(hmodule: usize) {
                     look.on_unload();
                     combat.on_unload();
                     movement.reset();
+                    movement::end_death();
                     bosses.reset();
                     villains.reset();
                     clones.reset();
@@ -322,6 +333,8 @@ fn boot(hmodule: usize) {
             }
             if !had_player {
                 log!("player: in world");
+                #[cfg(feature = "lab")]
+                lab::world_entered();
                 had_player = true;
                 settling_since = Some(Instant::now());
                 #[cfg(feature = "lab")]
@@ -504,6 +517,8 @@ fn boot(hmodule: usize) {
                 if ccw_params {
                     // 1.3.0: the villains' rows, before any boss arena's map loads its villain
                     villains::dress_rows();
+                    // 2.0.6: the player's death effect (bosses::kill_player)
+                    bosses::prepare_death_row();
                 }
             }
             if !rows_written && std::env::var_os("JUMPRING_NO_PROFILES").is_none() {
@@ -617,7 +632,10 @@ fn boot(hmodule: usize) {
             // Keep the health percentage when a stat profile changes max HP (it applies a frame or two later).
             if let Some((frac, old_max, since)) = hp_fraction {
                 let d = &mut player.chr_ins.modules.data;
-                if d.max_hp != old_max {
+                // (2.0.6: never over a death: it would stand a dying player up again)
+                if movement::dying() || d.hp <= 0 {
+                    hp_fraction = None;
+                } else if d.max_hp != old_max {
                     d.hp = ((d.max_hp as f32) * frac).round().max(1.0) as i32;
                     hp_fraction = None;
                 } else if since.elapsed() > Duration::from_secs(2) {
@@ -640,6 +658,7 @@ fn boot(hmodule: usize) {
             let training_now = UI.lock().unwrap().training;
             {
                 let _p = perf::span("bosses");
+                bosses::follow_death(player);
                 bosses.tick(player, difficulty.boss_hp(), parried, training_now);
             }
             #[cfg(feature = "lab")]

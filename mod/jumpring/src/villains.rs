@@ -1644,7 +1644,7 @@ impl Villains {
                 self.special_guard = Some((floor, until));
                 crate::movement::set_no_dead(crate::movement::NO_DEAD_SPECIAL, true);
                 let hp = player.chr_ins.modules.data.hp;
-                if hp < floor && hp > 0 {
+                if hp < floor && hp > 0 && !crate::movement::dying() {
                     log!("villains: a special took the player to {hp} HP: held at {floor}");
                     player.chr_ins.modules.data.hp = floor;
                 }

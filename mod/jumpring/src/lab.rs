@@ -365,6 +365,18 @@ pub struct Script {
     /// 2.0.3 "waitboss": the script waits until a boss's health bar is up (the player started its fight themselves: the
     /// tour's teleport into Malenia's arena once they were in it put them into the trees and through the ground), or F9
     wait_boss: bool,
+    /// 2.0.6 "waitworld <ms>": the script waits for the next arrival in the world (a load ending), then ms more (the freeze
+    /// hunt: a fighter picked moments after a respawn)
+    wait_world: Option<(u64, u64)>,
+}
+
+/// 2.0.6: arrivals in the world so far, and when the last one was (lib.rs "player: in world")
+static WORLD_ENTRIES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static WORLD_AT: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+pub fn world_entered() {
+    WORLD_ENTRIES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    *WORLD_AT.lock().unwrap() = Some(std::time::Instant::now());
 }
 
 static SCRIPT: std::sync::Mutex<Option<Script>> = std::sync::Mutex::new(None);
@@ -454,7 +466,7 @@ fn script_lock() -> std::sync::MutexGuard<'static, Option<Script>> {
                 .map(|l| l.trim().to_string()).filter(|l| !l.is_empty() && !l.starts_with('#')).collect();
             log!("lab script {path}: {} lines", lines.len());
             let now = std::time::Instant::now();
-            *g = Some(Script { lines, at: 0, wait_until: now, holds: Vec::new(), next_enter: now + std::time::Duration::from_secs(12), wait_key: None, wait_boss: false, no_enter: false });
+            *g = Some(Script { lines, at: 0, wait_until: now, holds: Vec::new(), next_enter: now + std::time::Duration::from_secs(12), wait_key: None, wait_boss: false, no_enter: false, wait_world: None });
         }
     }
     g
@@ -719,7 +731,14 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
             log!("lab script: the boss fight is on ({})", if bar { "its bar is up" } else { "F9" });
         }
     }
-    while now >= s.wait_until && s.at < s.lines.len() && s.wait_key.is_none() && !s.wait_boss {
+    if let Some((seen, ms)) = s.wait_world {
+        let at = *WORLD_AT.lock().unwrap();
+        if WORLD_ENTRIES.load(std::sync::atomic::Ordering::Relaxed) > seen && at.is_some_and(|t| now >= t + std::time::Duration::from_millis(ms)) {
+            s.wait_world = None;
+            log!("lab script: in the world {ms} ms after the load");
+        }
+    }
+    while now >= s.wait_until && s.at < s.lines.len() && s.wait_key.is_none() && !s.wait_boss && s.wait_world.is_none() {
         let line = s.lines[s.at].clone();
         s.at += 1;
         let (cmd, rest) = line.split_once(' ').unwrap_or((line.as_str(), ""));
@@ -763,6 +782,7 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
             // 1.2.0 Carian Combo Warriors reel: a caption on screen, and the same spot for every move
             "caption" => crate::world_fx::banner(rest.trim(), [1.0, 1.0, 1.0, 1.0], 3.0),
             "waitboss" => s.wait_boss = true,
+            "waitworld" => s.wait_world = Some((WORLD_ENTRIES.load(std::sync::atomic::Ordering::Relaxed), num(rest))),
             "noenter" => s.no_enter = true,
             "nolabkeys" => NO_LAB_KEYS.store(true, std::sync::atomic::Ordering::Relaxed),
             "waitkey" => s.wait_key = Some(i32::from_str_radix(rest.trim().trim_start_matches("0x"), 16).unwrap_or(0x78)),
@@ -1402,6 +1422,20 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
                     log!("lab script: cuehammer on");
                 }
             }
+            // 2.0.6: "edgedrop x y z": the body to that havok position, gravity left on (off an edge: rescue.rs FIGHT_DROP)
+            "edgedrop" => {
+                let v: Vec<f32> = rest.split_whitespace().filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 3 {
+                    // (block coordinates: the world's are re-based from load to load)
+                    let b = (player.block_position.x, player.block_position.y, player.block_position.z);
+                    let ph = &mut player.chr_ins.modules.physics;
+                    let p = ph.position;
+                    ph.position = eldenring::position::HavokPosition(p.0 + v[0] - b.0, p.1 + v[1] - b.1, p.2 + v[2] - b.2, p.3);
+                    ph.chr_proxy_pos_update_requested = true;
+                    ph.gravity_disabled = false;
+                    log!("lab script: edgedrop to block ({:.1}, {:.1}, {:.1}) from block ({:.1}, {:.1}, {:.1})", v[0], v[1], v[2], b.0, b.1, b.2);
+                }
+            }
             "lift" => {
                 // lift <m>: put the fighter that far up (fall tests)
                 let p = player.chr_ins.modules.physics.position;
@@ -1557,7 +1591,21 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
             }
             "reloadat" => {
                 // reload in place with GameMan.last_load_position set to where the player stands
-                if let Ok(gm) = unsafe { eldenring::cs::GameMan::instance_mut() } {
+                // (2.0.6: never toward an unloaded block, as look.rs: run during a fighter change's load, m255 sent the
+                // game to the title screen)
+                let area = player.current_block_id.area();
+                // (and just after a load the tile isn't known yet for a moment: asked again a quarter second later, for up to 15 s;
+                // skipped outright, a "waitworld" after it waited for good: bossloads 2026-10-27)
+                static TRIES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+                if area == 0 || area == 0xFF {
+                    if TRIES.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 60 {
+                        s.at -= 1;
+                        s.wait_until = now + std::time::Duration::from_millis(250);
+                    } else {
+                        TRIES.store(0, std::sync::atomic::Ordering::Relaxed);
+                        log!("lab script: reloadat skipped: tile {} isn't loaded", player.current_block_id);
+                    }
+                } else if let Ok(gm) = unsafe { eldenring::cs::GameMan::instance_mut() } {
                     let b = &player.block_position;
                     gm.last_load_position = fromsoftware_shared::F32Vector4(b.x, b.y, b.z, 1.0);
                     if rest.trim() == "join" {
@@ -1567,6 +1615,7 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
                     gm.move_map_target = player.current_block_id;
                     gm.initial_area_entity_id = 0;
                     gm.warp_requested = true;
+                    TRIES.store(0, std::sync::atomic::Ordering::Relaxed);
                     log!("lab script: reloadat ({:.1}, {:.1}, {:.1}) tile {}", b.x, b.y, b.z, player.current_block_id);
                 }
             }
@@ -2295,7 +2344,19 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
                 log!("lab script: grace {:?} block {}", crate::grace::respawn_grace(), player.current_block_id);
                 crate::grace::warp_back("lab", player.current_block_id, (player.block_position.x, player.block_position.y, player.block_position.z));
             }
-            "kill" => player.chr_ins.modules.data.hp = 0,
+            // 2.0.6: "kill" a lethal blow through the game (its own HP loss, as a real one; the guards then do what they do
+            // with a real one); "kill0" HP set to 0 (which never starts the game's death)
+            "kill" => crate::bosses::kill_player(&mut player.chr_ins),
+            "kill0" => player.chr_ins.modules.data.hp = 0,
+            // 2.0.6: "hp1": what a lethal blow does under a "can't die" switch (the game holds HP at 1)
+            "hp1" => player.chr_ins.modules.data.hp = 1,
+            // 2.0.6: "deathrow <hp rate> <hp point> <endurance> <interval>": the death effect's row set (bosses::DEATH_EFFECT)
+            "deathrow" => {
+                let v: Vec<f32> = rest.split_whitespace().filter_map(|t| t.parse().ok()).collect();
+                if v.len() >= 4 {
+                    crate::bosses::lab_death_row(v[0], v[1] as i32, v[2], v[3]);
+                }
+            }
             // 1.3.0: "warpto <area> <block> <region> <x> <y> <z>": a trip to that spot of that map (a map's own coordinates,
             // as its .msb places things: flverport msbchr prints them)
             "warpto" => {

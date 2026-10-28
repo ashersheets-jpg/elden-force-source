@@ -396,6 +396,13 @@ impl Movement {
                 log!("move: stopped, the fighter is dead");
                 self.reset();
             }
+            // 2.0.6 (lab limbo runs: killed mid-jump, mid-flight or mid-Awakening, the fighter stood on at 0 HP, unkillable,
+            // until the next load): the fall guard's "can't die" switch was only ever let go by fall_guard below, which
+            // a dead fighter never reaches. A death in the air is a death: the switch goes off with it.
+            if self.fall_guard.take().is_some() {
+                set_no_dead(NO_DEAD_FALL, false);
+                log!("move: the fall guard let go: the fighter died in the air");
+            }
             return None;
         }
         let anim = base_anim(current_anim(player));
@@ -709,10 +716,26 @@ impl Movement {
     }
 
     fn fall_guard(&mut self, player: &mut PlayerIns) {
+        // (2.0.6) a death under way: no guard
+        if dying() {
+            if self.fall_guard.take().is_some() {
+                set_no_dead(NO_DEAD_FALL, false);
+            }
+            return;
+        }
         let ph = &player.chr_ins.modules.physics;
         let in_air = (ph.is_falling && !ph.is_touching_ground) || self.flight.is_some() || self.swing.is_some();
         let hp = player.chr_ins.modules.data.hp;
         let p = ph.position;
+        // a fall only hurts on landing: in the air, a blow the switch held at 1 HP was lethal (a death, not a fighter
+        // left standing on 1 HP)
+        if in_air && hp == 1 && self.fall_guard.is_some_and(|(before, _)| before > 1) {
+            log!("move: a lethal blow in the air: the fall guard lets go");
+            self.fall_guard = None;
+            set_no_dead(NO_DEAD_FALL, false);
+            crate::bosses::kill_player(&mut player.chr_ins);
+            return;
+        }
         if in_air && hp > 0 {
             let over_ground = crate::motion::ground_below(player, p.0, p.1 + 0.3, p.2, 150.0).is_some();
             match (&mut self.fall_guard, over_ground) {
@@ -720,14 +743,17 @@ impl Movement {
                     self.fall_guard = Some((hp, None));
                     set_no_dead(NO_DEAD_FALL, true);
                 }
+                // 2.0.6: the health just before landing, not the most it had in the air: a landing gives back only
+                // what the landing took (blows taken in the air, a boss's lethal one held at 1 HP among them, were all
+                // healed on landing: a player's log, Gojo from 1 HP back to 601)
                 (Some((before, landed)), true) => {
-                    *before = (*before).max(hp);
+                    *before = hp;
                     *landed = None;
                 }
                 // 0.15.0: over the void only while a fall there isn't the player's doing (just loaded):
                 // their own fall over an edge kills again (rescue.rs)
                 (Some((before, landed)), false) if VOID_SAFE.load(std::sync::atomic::Ordering::Relaxed) => {
-                    *before = (*before).max(hp);
+                    *before = hp;
                     *landed = None;
                 }
                 (None, false) if VOID_SAFE.load(std::sync::atomic::Ordering::Relaxed) => {
@@ -744,6 +770,16 @@ impl Movement {
         }
         let Some((before, landed)) = &mut self.fall_guard else { return };
         let at = *landed.get_or_insert_with(Instant::now);
+        // 2.0.6 (lab killtest: a boss's lethal blow just after a landing was given back as if the landing took it, the
+        // fighter back to full health): the switch holds a lethal blow at 1 HP, so 1 HP from more is a death, not a fall
+        // (not the landing itself: a fall's own damage lands with it, in its first frames, and falls never kill)
+        if hp == 1 && *before > 1 && at.elapsed().as_secs_f32() > 0.15 {
+            log!("move: a lethal blow as they landed: the fall guard lets go");
+            self.fall_guard = None;
+            set_no_dead(NO_DEAD_FALL, false);
+            crate::bosses::kill_player(&mut player.chr_ins);
+            return;
+        }
         if hp < *before && hp > 0 {
             // the landing's damage, given back
             player.chr_ins.modules.data.hp = *before;
@@ -1952,12 +1988,45 @@ static NO_DEAD: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0
 pub fn set_no_dead(who: u8, on: bool) {
     let mask = if on { NO_DEAD.fetch_or(who, std::sync::atomic::Ordering::Relaxed) | who } else { NO_DEAD.fetch_and(!who, std::sync::atomic::Ordering::Relaxed) & !who };
     if let Ok(f) = unsafe { eldenring::cs::WorldChrManDbgFlags::instance_mut() } {
-        f.player_no_dead = mask != 0;
+        f.player_no_dead = mask != 0 && !dying();
     }
+}
+
+/// 2.0.6: when the player's death began (ms since the epoch; 0: none). Lab limbo runs: a lethal blow in the air was given
+/// its death (bosses::kill_player), and on the next frame the fall guard, the player still in the air, held them up again:
+/// they stood at 1 HP for 40 s. From a death's start until the next load (or DEATH_HOLD), no holder can stop it.
+static DYING_SINCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+const DEATH_HOLD_MS: u64 = 12_000;
+
+pub fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+/// A death under way (begin_death within DEATH_HOLD_MS, no load since).
+pub fn dying() -> bool {
+    let t = DYING_SINCE.load(std::sync::atomic::Ordering::Relaxed);
+    t != 0 && now_ms().saturating_sub(t) < DEATH_HOLD_MS
+}
+
+/// The player's death starts now: every "can't die" holder lets go and none can hold them up until it's over.
+pub fn begin_death() {
+    DYING_SINCE.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+    if let Ok(f) = unsafe { eldenring::cs::WorldChrManDbgFlags::instance_mut() } {
+        f.player_no_dead = false;
+    }
+}
+
+/// A load: any death is over.
+pub fn end_death() {
+    DYING_SINCE.store(0, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Who holds the switch now (bits NO_DEAD_*).
 pub fn no_dead_mask() -> u8 {
+    // (2.0.6: a death under way is held by nothing)
+    if dying() {
+        return 0;
+    }
     NO_DEAD.load(std::sync::atomic::Ordering::Relaxed)
 }
 

@@ -157,6 +157,8 @@ pub struct Stands {
     in_world_since: Option<Instant>,
     /// a call that never came: not asked again for this fighter until the next load
     gave_up: bool,
+    gave_up_at: Option<Instant>,
+    tries: u32,
     /// its look's rows made (once per run)
     look_ready: bool,
     /// (1.3.1 round 3) a pointing move's call, held until his hand thrusts: (secs, what, when)
@@ -418,6 +420,8 @@ impl Stands {
         }
         self.in_world_since = None;
         self.gave_up = false;
+        self.gave_up_at = None;
+        self.tries = 0;
     }
 
     pub fn tick(&mut self, player: &mut PlayerIns, fighter: &str, other_summon: bool) {
@@ -465,7 +469,9 @@ impl Stands {
             }
         }
         if self.s.is_none() {
-            if !self.gave_up && !other_summon && since.elapsed().as_secs_f32() > CALL_AFTER && player.chr_ins.modules.data.hp > 0 {
+            // (2.0.6: a call that got no Stand is tried again a little later, three times in all)
+            let again = self.gave_up && self.tries < 3 && self.gave_up_at.is_some_and(|t| t.elapsed() > Duration::from_secs(15));
+            if (!self.gave_up || again) && !other_summon && since.elapsed().as_secs_f32() > CALL_AFTER && player.chr_ins.modules.data.hp > 0 {
                 self.summon(player, idx);
             }
             return;
@@ -500,9 +506,19 @@ impl Stands {
                 log!("stands: the Stand is here (kept out of sight), {} afterimages", s.after.len());
             } else if s.asked.elapsed() > Duration::from_secs(8) {
                 log!("stands: no Stand came");
+                // 2.0.6 (the user, Margit's fight as DIO: "wolves spawned in... they were summons"): the call went out while the
+                // game couldn't summon (the player held through Margit's entrance), and the request stayed: the game answered it
+                // later from the group's own rows, put back by then (Lone Wolf Ashes, three wolves). The request goes with it.
+                if let Ok(wcm) = unsafe { WorldChrMan::instance_mut() } {
+                    let m = &mut wcm.summon_buddy_manager;
+                    m.request_summon_speffect_id = -1;
+                    m.requested_summon_goods_id = -1;
+                }
                 group_rows(false);
                 self.s = None;
                 self.gave_up = true;
+                self.tries += 1;
+                self.gave_up_at = Some(now);
             }
             return;
         }

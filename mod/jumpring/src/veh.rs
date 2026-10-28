@@ -22,7 +22,7 @@ fn stack_base() -> usize {
 }
 
 pub(crate) fn module_of(a: usize) -> Option<String> {
-    for (name, w) in [("er", windows_sys::w!("eldenring.exe")), ("jr", windows_sys::w!("jumpring.dll")), ("ntdll", windows_sys::w!("ntdll.dll")), ("kb", windows_sys::w!("KERNELBASE.dll")), ("d3d12core", windows_sys::w!("D3D12Core.dll"))] {
+    for (name, w) in [("er", windows_sys::w!("eldenring.exe")), ("jr", windows_sys::w!("jumpring.dll")), ("ntdll", windows_sys::w!("ntdll.dll")), ("kb", windows_sys::w!("KERNELBASE.dll")), ("d3d12core", windows_sys::w!("D3D12Core.dll")), ("layers", windows_sys::w!("d3d12SDKLayers.dll")), ("d3d12", windows_sys::w!("d3d12.dll")), ("dxgi", windows_sys::w!("dxgi.dll"))] {
         let b = unsafe { GetModuleHandleW(w) } as usize;
         if b == 0 {
             continue;
@@ -75,6 +75,11 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
         } else {
             LUA_THROWS.fetch_sub(1, Ordering::Relaxed);
         }
+        return 0;
+    }
+    // 2.0.6: the D3D12 debug layer's messages (d3ddebug.rs), when it is on
+    if code == 0x40010006 && crate::d3ddebug::ON.load(Ordering::Relaxed) {
+        crate::d3ddebug::print(&rec.ExceptionInformation[..(rec.NumberParameters as usize).min(2)], unsafe { (*(*info).ContextRecord).Rsp } as usize);
         return 0;
     }
     // (routine: C++ throws, debugger prints, thread names, guard pages the game's own code uses)

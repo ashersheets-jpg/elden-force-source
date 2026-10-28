@@ -82,6 +82,96 @@ fn tell_of(art: Art) -> (f32, [f32; 4], &'static str) {
 const TELL_SPEED: f32 = 0.45;
 /// 2.0.6: how long the switch stays off for the player's death to start (see guard_kills)
 const PLAYER_DEATH_WAIT: Duration = Duration::from_secs(8);
+/// lab: 2.0.5's handling of the player's death (olddeath.on)
+#[cfg(feature = "lab")]
+pub static OLD_DEATH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// 2.0.6: our own SpEffect row (strip_fx.json row_new 9990299, a copy of the neutral 310000): all of the player's health
+/// lost in one go. Setting the player's HP to 0 never starts the game's death (lab limbo runs: every guard off, HP 0, the
+/// fighter stood on for as long as we watched; players' deaths only came when another blow landed after it, and DIO in
+/// stopped time stood on at 1 HP); an HP loss the game applies itself does, as poison's does.
+const DEATH_EFFECT: i32 = 9990299;
+
+/// Once the param rows are in (lib.rs): the death row's HP loss.
+pub fn prepare_death_row() {
+    let Ok(repo) = (unsafe { SoloParamRepository::instance_mut() }) else { return };
+    let Some(r) = repo.get_mut::<eldenring::cs::SpEffectParam>(DEATH_EFFECT as u32) else {
+        log!("bosses: death effect row {DEATH_EFFECT} missing");
+        return;
+    };
+    // (lab deathrows: positive is a loss; with no duration (0) the game never applies it, 0.1 s takes it all at once)
+    r.set_effect_endurance(0.1);
+    r.set_motion_interval(0.0);
+    r.set_change_hp_rate(100.0);
+    r.set_change_hp_point(999_999);
+    r.set_icon_id(-1);
+    r.set_vfx_id(-1);
+    r.set_state_info(0);
+    r.set_effect_target_self(true);
+    r.set_effect_target_player(true);
+    log!("bosses: death effect {DEATH_EFFECT} ready");
+}
+
+/// lab: the death row's numbers
+#[cfg(feature = "lab")]
+pub fn lab_death_row(rate: f32, point: i32, endurance: f32, interval: f32) {
+    let Ok(repo) = (unsafe { SoloParamRepository::instance_mut() }) else { return };
+    if let Some(r) = repo.get_mut::<eldenring::cs::SpEffectParam>(DEATH_EFFECT as u32) {
+        r.set_change_hp_rate(rate);
+        r.set_change_hp_point(point);
+        r.set_effect_endurance(endurance);
+        r.set_motion_interval(interval);
+        log!("lab: death row: rate {rate} point {point} endurance {endurance} interval {interval}");
+    }
+}
+
+/// The player's death, through the game: its own HP loss (DEATH_EFFECT), so the game starts the death itself.
+pub fn kill_player(player: &mut eldenring::cs::ChrIns) {
+    crate::movement::begin_death();
+    apply_death(player);
+}
+
+fn apply_death(player: &mut eldenring::cs::ChrIns) {
+    use eldenring::cs::ChrInsExt;
+    // (an invincible body takes no HP loss at all: the lab's god, a fighter change's or a rescue's hold)
+    player.chr_flags1c5.set_is_invincible(false);
+    player.remove_speffect(DEATH_EFFECT);
+    player.apply_speffect(DEATH_EFFECT, true);
+    LAST_DEATH_TRY.store(crate::movement::now_ms(), std::sync::atomic::Ordering::Relaxed);
+}
+
+static LAST_DEATH_TRY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// 2.0.6: every frame in world: a death under way that the game hasn't taken (HP still above 0) is tried again
+/// (quickswap: one kill landed on the frame the lab's god let go and the effect did nothing; the player
+/// stood at full health and the run waited 40 minutes)
+pub fn follow_death(player: &mut eldenring::cs::PlayerIns) {
+    if !crate::movement::dying() || player.chr_ins.modules.data.hp <= 0 {
+        return;
+    }
+    // (the game's own death animations under way (17xxx-18xxx): the death has taken; Elden Ring may put HP back at 1
+    // while they play (lab knockoff: hp 0, then 1 at 2.5 s, then the respawn as usual))
+    if (17000..19000).contains(&crate::movement::current_anim(player)) {
+        return;
+    }
+    let player = &mut player.chr_ins;
+    let last = LAST_DEATH_TRY.load(std::sync::atomic::Ordering::Relaxed);
+    if crate::movement::now_ms().saturating_sub(last) >= 600 {
+        log!("bosses: the player's death hasn't taken (hp {}): again", player.modules.data.hp);
+        if let Ok(f) = unsafe { eldenring::cs::WorldChrManDbgFlags::instance_mut() } {
+            f.player_no_dead = false;
+        }
+        apply_death(player);
+    }
+}
+
+fn player_death_wait() -> Duration {
+    #[cfg(feature = "lab")]
+    if OLD_DEATH.load(std::sync::atomic::Ordering::Relaxed) {
+        return Duration::from_millis(1500);
+    }
+    PLAYER_DEATH_WAIT
+}
 const EXPOSED_SPEED: f32 = 0.55;
 pub const EXPOSED_FOR: f32 = 2.6;
 
@@ -451,7 +541,7 @@ impl Bosses {
                 crate::movement::set_no_dead(crate::movement::NO_DEAD_ART, true);
                 // 1.1.0: never a death undone (writing HP back after the game began a death left the user
                 // standing at 0 HP after their death animation)
-                if hp < floor && hp > 0 {
+                if hp < floor && hp > 0 && !crate::movement::dying() {
                     log!("bosses: the art took the player to {hp} HP: held at {floor} (40%)");
                     player.chr_ins.modules.data.hp = floor;
                 }
@@ -885,12 +975,31 @@ impl Bosses {
                 let c = &mut p.chr_ins;
                 let hp = c.modules.data.hp;
                 let held = crate::movement::no_dead_mask() != 0 || std::env::var_os("JR_GOD").is_some();
-                let dying = self.killing.iter().any(|(key, _)| *key == me);
+                // (2.0.6: or a death begun anywhere (movement::dying): HP at 0 through the game's own loss is a death under way, its
+                // animations run about 12 s to the load)
+                let dying = self.killing.iter().any(|(key, _)| *key == me) || crate::movement::dying();
+                // (lab, the freeze hunt: olddeath.on beside the log brings back 2.0.5's handling: 1.5 s, and no second look at
+                // a player left at 1 HP)
+                #[cfg(feature = "lab")]
+                let dying = dying || OLD_DEATH.load(std::sync::atomic::Ordering::Relaxed);
                 if let Some(last) = self.others_last.insert(me, hp) {
-                    // (2.0.6: left at 1 HP by the switch and not already dying: that blow was their death too)
-                    if self.enemy_guard && !held && hp == 1 && (last > 1 || !dying) {
+                    // (2.0.6: left at 1 HP by the switch, or put at 0 by our own guards (movement.rs fall guard), and not already
+                    // dying: that blow was their death too)
+                    if self.enemy_guard && !held && hp <= 1 && (last > 1 || !dying) {
                         log!("bosses: a blow that would have killed the player: they die");
-                        c.modules.data.hp = 0;
+                        // (through the game's own HP loss, from 1: HP set to 0 never starts a death)
+                        #[cfg(feature = "lab")]
+                        let old = OLD_DEATH.load(std::sync::atomic::Ordering::Relaxed);
+                        #[cfg(not(feature = "lab"))]
+                        let old = false;
+                        if old {
+                            c.modules.data.hp = 0;
+                        } else {
+                            if c.modules.data.hp < 1 {
+                                c.modules.data.hp = 1;
+                            }
+                            kill_player(c);
+                        }
                         self.killing.push((me, now));
                     }
                 }
@@ -902,22 +1011,15 @@ impl Bosses {
         // 2.0.6 (a player's freeze report: "they die", then DIO stood at 1 HP for a minute, unkillable): the game can take
         // longer than 1.5 s to start the player's death (mid-move, mid-air); with the switch back on it put them at 1 HP
         // for good, and a blow from 1 HP never counts as lethal. The player's death keeps the switch off until the game
-        // marks it (their health held at 0 meanwhile), for up to PLAYER_DEATH_WAIT.
-        if self.killing.iter().any(|(key, _)| *key == me) {
-            if let Some(p) = unsafe { WorldChrMan::instance_mut() }.ok().and_then(|w| w.main_player.as_mut()) {
-                if !p.chr_ins.chr_flags1c5.death_flag() && p.chr_ins.modules.data.hp > 0 && crate::movement::no_dead_mask() == 0 {
-                    p.chr_ins.modules.data.hp = 0;
-                }
-            }
-        }
+        // marks it, for up to PLAYER_DEATH_WAIT (and is asked again after it, see above).
         self.killing.retain(|(key, at)| {
             let (dead, wait) = if *key == me {
-                (wcm.main_player.as_ref().is_none_or(|p| p.chr_ins.chr_flags1c5.death_flag()), PLAYER_DEATH_WAIT)
+                (wcm.main_player.as_ref().is_none_or(|p| p.chr_ins.chr_flags1c5.death_flag() || p.chr_ins.modules.data.hp <= 0), player_death_wait())
             } else {
                 (by_addr(*key).is_none_or(|c| c.chr_flags1c5.death_flag()), Duration::from_millis(1500))
             };
             if !dead && *key == me && now.duration_since(*at) >= wait {
-                log!("bosses: the player's death never started ({} s): the switch goes back on", wait.as_secs());
+                log!("bosses: the player's death not marked by the game after {} s (hp {}): the switch goes back on", wait.as_secs(), wcm.main_player.as_ref().map(|p| p.chr_ins.modules.data.hp).unwrap_or(-1));
             }
             !dead && now.duration_since(*at) < wait
         });

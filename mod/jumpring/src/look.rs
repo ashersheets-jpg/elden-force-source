@@ -296,7 +296,8 @@ impl Look {
         crate::movement::allow_death();
         player.chr_ins.chr_flags1c5.set_is_invincible(false);
         player.chr_ins.modules.physics.gravity_disabled = false;
-        player.chr_ins.modules.data.hp = 0;
+        // (2.0.6: through the game's own HP loss: HP set to 0 never starts a death)
+        crate::bosses::kill_player(&mut player.chr_ins);
     }
 
     /// Every frame in world: height, keep the outfit right, finish a reload in place.

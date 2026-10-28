@@ -25,6 +25,11 @@ use crate::motion;
 const AFTER_LOAD: Duration = Duration::from_secs(20);
 /// A drop this long ends a fighter where it lands (a swing's highest release is about 25 m up).
 const LETHAL_DROP: f32 = 60.0;
+/// 2.0.6: in a boss or villain fight, landing this far below the ground they last stood on (knocked off the
+/// arena's edge) ends them, as in Elden Ring: Muscular punched DIO off Margit's bridge onto a ledge 44 m down,
+/// out of everyone's reach, alive and out of the fight for good. (Measured ground to ground: a flight or a
+/// swing that comes back down onto the arena is no drop at all.)
+const FIGHT_DROP: f32 = 25.0;
 
 #[derive(Default)]
 pub struct Rescue {
@@ -43,6 +48,13 @@ pub struct Rescue {
     warped: bool,
     /// the fall was judged the player's own: they die
     dying: bool,
+    /// metres down since they last stood on ground, flights and teleports included (up counts back), and the
+    /// last tile, height on it (block coordinates: the game never re-bases those) and world height seen
+    below_ground: f32,
+    air_y: Option<(eldenring::cs::BlockId, f32, f32)>,
+    /// the last ground they stood settled on (tile, block height), and last frame's if on the ground
+    ground: Option<(eldenring::cs::BlockId, f32)>,
+    last_landed: Option<(eldenring::cs::BlockId, f32)>,
 }
 
 impl Rescue {
@@ -71,6 +83,9 @@ impl Rescue {
         if player.chr_ins.modules.data.hp <= 0 || look_holding || self.warped || now.duration_since(since) < Duration::from_secs(3) {
             self.void_since = None;
             self.inside_since = None;
+            self.below_ground = 0.0;
+            self.air_y = None;
+            self.last_landed = None;
             return;
         }
         let just_loaded = now.duration_since(since) < AFTER_LOAD;
@@ -113,6 +128,44 @@ impl Rescue {
                 self.last_y = None;
             }
         }
+        // knocked off a fight's arena: ground to ground, how far down they came
+        let (block, by) = (player.current_block_id, player.block_position.y);
+        if landed {
+            if self.air_y.is_some() {
+                // from the last ground they stood settled on, on the same tile; across tiles, the heights summed in the air
+                let down = match self.ground {
+                    Some((gb, gy)) if gb == block => gy - by,
+                    _ => self.below_ground,
+                };
+                if down.abs() > 8.0 {
+                    log!("rescue: landed {down:.1} m below the ground they left (in a fight {})", in_fight());
+                }
+                self.below_ground = 0.0;
+                self.air_y = None;
+                if down > FIGHT_DROP && !just_loaded && !self.dying && in_fight() {
+                    self.die(player, &format!("landed {down:.0} m below the fight's ground"));
+                    return;
+                }
+            }
+            // (settled: on the ground last frame too, no jump in height: a teleport's first frame still reads as touching
+            // the ground, and an upward one counted as the ground left made its way back down a fall: lab knockoff B)
+            if self.last_landed.is_some_and(|(lb, ly)| lb == block && (ly - by).abs() < 1.0) {
+                self.ground = Some((block, by));
+            }
+            self.last_landed = Some((block, by));
+        } else {
+            self.last_landed = None;
+            if let Some((lb, lby, ly)) = self.air_y {
+                if lb == block {
+                    self.below_ground += lby - by;
+                } else if (ly - pos.1).abs() < 5.0 {
+                    // (onto another tile: the world height, where a jump of 5 m and more in a frame is the game re-basing)
+                    self.below_ground += ly - pos.1;
+                }
+            }
+            self.air_y = Some((block, by, pos.1));
+        }
+        let ph = &player.chr_ins.modules.physics;
         let airborne = (ph.is_falling && !ph.is_touching_ground) || flown;
         let void = airborne && motion::ground_below(player, pos.0, pos.1 + 0.5, pos.2, 300.0).is_none();
         if !void {
@@ -142,8 +195,8 @@ impl Rescue {
         self.dying = true;
         log!("rescue: {what}: a fall to their death");
         crate::movement::allow_death();
-        player.chr_ins.chr_flags1c5.set_is_invincible(false);
-        player.chr_ins.modules.data.hp = 0;
+        // (2.0.6: through the game's own HP loss: HP set to 0 never starts a death, it left them standing at 0)
+        crate::bosses::kill_player(&mut player.chr_ins);
     }
 
     fn back_to_grace(&mut self, player: &mut PlayerIns, why: &str) {
@@ -160,4 +213,11 @@ impl Rescue {
             self.die(player, why);
         }
     }
+}
+
+/// A boss's health bar is up, or a villain fights on after its boss fell.
+fn in_fight() -> bool {
+    use fromsoftware_shared::FromStatic;
+    unsafe { eldenring::cs::CSFeManImp::instance() }.is_ok_and(|fe| fe.boss_health_displays.iter().any(|b| b.fmg_id > 0 && !b.field_ins_handle.is_empty()))
+        || crate::villains::FIGHTING.load(std::sync::atomic::Ordering::Relaxed)
 }
