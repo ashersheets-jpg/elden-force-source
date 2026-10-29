@@ -95,13 +95,60 @@ pub fn by_size() -> String {
     v.iter().take(5).map(|(k, b)| format!("2^{k}:{:.1}", *b as f64 / 1048576.0)).collect::<Vec<_>>().join(" ")
 }
 
+/// 2.0.7: allocations that found the PC out of memory and waited for it (each wait 50 ms). Before, Rust's allocator
+/// ended the game at the first failure (players' crash reports in jumpring.dll, during the first launch's build).
+pub static ALLOC_WAITS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// An allocation that failed, tried again every 50 ms for up to 10 s while other work frees memory. (No logging here:
+/// logging allocates. The count is in ALLOC_WAITS.)
+fn patient(mut f: impl FnMut() -> *mut u8) -> *mut u8 {
+    for _ in 0..200 {
+        ALLOC_WAITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let p = f();
+        if !p.is_null() {
+            return p;
+        }
+    }
+    std::ptr::null_mut()
+}
+
+#[cfg(not(feature = "lab"))]
+pub struct Patient;
+
+#[cfg(not(feature = "lab"))]
+unsafe impl std::alloc::GlobalAlloc for Patient {
+    unsafe fn alloc(&self, l: std::alloc::Layout) -> *mut u8 {
+        let p = unsafe { std::alloc::System.alloc(l) };
+        if !p.is_null() { p } else { patient(|| unsafe { std::alloc::System.alloc(l) }) }
+    }
+    unsafe fn alloc_zeroed(&self, l: std::alloc::Layout) -> *mut u8 {
+        let p = unsafe { std::alloc::System.alloc_zeroed(l) };
+        if !p.is_null() { p } else { patient(|| unsafe { std::alloc::System.alloc_zeroed(l) }) }
+    }
+    unsafe fn dealloc(&self, p: *mut u8, l: std::alloc::Layout) {
+        unsafe { std::alloc::System.dealloc(p, l) };
+    }
+    unsafe fn realloc(&self, p: *mut u8, l: std::alloc::Layout, n: usize) -> *mut u8 {
+        let q = unsafe { std::alloc::System.realloc(p, l, n) };
+        if !q.is_null() { q } else { patient(|| unsafe { std::alloc::System.realloc(p, l, n) }) }
+    }
+}
+
+#[cfg(not(feature = "lab"))]
+#[global_allocator]
+static PATIENT: Patient = Patient;
+
 #[cfg(feature = "lab")]
 pub struct Counting;
 
 #[cfg(feature = "lab")]
 unsafe impl std::alloc::GlobalAlloc for Counting {
     unsafe fn alloc(&self, l: std::alloc::Layout) -> *mut u8 {
-        let p = unsafe { std::alloc::System.alloc(l) };
+        let mut p = unsafe { std::alloc::System.alloc(l) };
+        if p.is_null() {
+            p = patient(|| unsafe { std::alloc::System.alloc(l) });
+        }
         if !p.is_null() {
             let now = OURS.fetch_add(l.size(), std::sync::atomic::Ordering::Relaxed) + l.size();
             OURS_PEAK.fetch_max(now, std::sync::atomic::Ordering::Relaxed);
@@ -115,7 +162,10 @@ unsafe impl std::alloc::GlobalAlloc for Counting {
         BY_SIZE[class(l.size())].fetch_sub(l.size() as isize, std::sync::atomic::Ordering::Relaxed);
     }
     unsafe fn realloc(&self, p: *mut u8, l: std::alloc::Layout, n: usize) -> *mut u8 {
-        let q = unsafe { std::alloc::System.realloc(p, l, n) };
+        let mut q = unsafe { std::alloc::System.realloc(p, l, n) };
+        if q.is_null() {
+            q = patient(|| unsafe { std::alloc::System.realloc(p, l, n) });
+        }
         if !q.is_null() {
             OURS.fetch_sub(l.size(), std::sync::atomic::Ordering::Relaxed);
             let now = OURS.fetch_add(n, std::sync::atomic::Ordering::Relaxed) + n;

@@ -305,7 +305,10 @@ fn boot(hmodule: usize) {
                     }
                 }
             }
-            let Ok(wcm) = (unsafe { WorldChrMan::instance_mut() }) else { return };
+            let Ok(wcm) = (unsafe { WorldChrMan::instance_mut() }) else {
+                watchdog::player_present(false);
+                return;
+            };
             // 1.3.1 lab (the game's 2.7.2.0 patch moved structures): JR_LAYOUT dumps the raw memory our code reads
             #[cfg(feature = "lab")]
             if std::env::var_os("JR_LAYOUT").is_some() {
@@ -314,6 +317,7 @@ fn boot(hmodule: usize) {
             }
             #[cfg(feature = "lab")]
             oracle.tick(wcm, combat.last_cast);
+            watchdog::player_present(wcm.main_player.is_some());
             if wcm.main_player.is_none() {
                 // Loading: write the current fighter's look into the player's data so the character is
                 // built with it (no reload needed after the load).

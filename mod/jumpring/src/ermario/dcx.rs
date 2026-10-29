@@ -79,35 +79,39 @@ pub fn compress(raw: &[u8]) -> Result<Vec<u8>, String> {
     unsafe { std::ptr::copy_nonoverlapping((o.defaults)(KRAKEN, level), opts.as_mut_ptr(), 128) };
     opts[8..12].copy_from_slice(&1u32.to_le_bytes()); // seekChunkReset
     opts[12..16].copy_from_slice(&0x40000i32.to_le_bytes()); // seekChunkLen
-    let mut comp = vec![0u8; raw.len() + raw.len() / 2 + 65536];
+    // (2.0.7: compressed straight in after the header, in a buffer only as big as Kraken can need (its worst case is a
+    // few hundred bytes per 256 KB chunk over the input); it was 1.5x the input plus a second copy, 1 GB more at the peak
+    // for the 357 MB effects binder. Same bytes out.)
+    let mut out = vec![0u8; 0x4C + raw.len() + raw.len() / 64 + 65536];
     let n = unsafe {
         (o.compress)(
-            KRAKEN, raw.as_ptr(), raw.len() as isize, comp.as_mut_ptr(), level,
+            KRAKEN, raw.as_ptr(), raw.len() as isize, out.as_mut_ptr().add(0x4C), level,
             opts.as_ptr() as *const c_void, std::ptr::null(), std::ptr::null(), std::ptr::null_mut(), 0,
         )
     };
     if n <= 0 {
         return Err(format!("Kraken compression failed ({n})"));
     }
-    comp.truncate(n as usize);
-    let mut out = Vec::with_capacity(0x4C + comp.len() + 16);
+    out.truncate(0x4C + n as usize);
+    let comp_len = n as usize;
+    let mut head = Vec::with_capacity(0x4C);
     let be = |out: &mut Vec<u8>, v: u32| out.extend_from_slice(&v.to_be_bytes());
-    out.extend_from_slice(b"DCX\0");
+    head.extend_from_slice(b"DCX\0");
     for v in [0x11000, 0x18, 0x24, 0x44, 0x4C] {
-        be(&mut out, v);
+        be(&mut head, v);
     }
-    out.extend_from_slice(b"DCS\0");
-    be(&mut out, raw.len() as u32);
-    be(&mut out, comp.len() as u32);
-    out.extend_from_slice(b"DCP\0KRAK");
-    be(&mut out, 0x20);
-    be(&mut out, 0x0600_0000);
-    out.extend_from_slice(&[0u8; 12]);
-    be(&mut out, 0x0001_0100);
-    out.extend_from_slice(b"DCA\0");
-    be(&mut out, 8);
-    debug_assert_eq!(out.len(), 0x4C);
-    out.extend_from_slice(&comp);
+    head.extend_from_slice(b"DCS\0");
+    be(&mut head, raw.len() as u32);
+    be(&mut head, comp_len as u32);
+    head.extend_from_slice(b"DCP\0KRAK");
+    be(&mut head, 0x20);
+    be(&mut head, 0x0600_0000);
+    head.extend_from_slice(&[0u8; 12]);
+    be(&mut head, 0x0001_0100);
+    head.extend_from_slice(b"DCA\0");
+    be(&mut head, 8);
+    debug_assert_eq!(head.len(), 0x4C);
+    out[..0x4C].copy_from_slice(&head);
     out.resize(out.len().div_ceil(16) * 16, 0);
     Ok(out)
 }

@@ -338,7 +338,14 @@ fn make_ccw(archives: &Archives, list: &[CcwEntry], dir: &Path) -> Result<usize,
         if let Some(parent) = out.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        std::fs::write(out, dcx::compress(&bnd4::build(&src, &files))?).map_err(|e| e.to_string())?;
+        // (2.0.7: the source and its files freed before compressing: the effects binder is 357 MB, held three times over)
+        let built = bnd4::build(&src, &files);
+        let size = src.len() >> 20;
+        drop(files);
+        drop(src);
+        let peak = crate::recolor::private_mb();
+        std::fs::write(out, dcx::compress(&built)?).map_err(|e| e.to_string())?;
+        log!("anims: {name} written ({size} MB of the binder, memory {peak} MB)");
     }
     Ok(made)
 }
@@ -778,6 +785,12 @@ fn make_inner(archives: &Archives) -> Result<usize, String> {
     let tpl_name = format!("a000_{TEMPLATE:06}.hkx");
     let (tpl_path, tpl) = hi.iter().find(|f| f.name.ends_with(&tpl_name)).map(|f| (f.name.clone(), f.data.clone())).ok_or("template animation missing")?;
     let folder = tpl_path[..tpl_path.len() - tpl_name.len()].to_string();
+    let (commit, phys) = crate::recolor::memory_free_mb();
+    log!("anims: making the animations ({commit} MB free to commit, {phys} MB of memory free)");
+    let mut skipped: Vec<u32> = Vec::new();
+    // (2.0.7: the binders below are freed as soon as the animations are written, before the next ones are read: all of
+    // them held at once took 2.2 GB, and a PC short of memory crashed here)
+    {
     // other sections' clips (Ashes of War) are read from the binders that hold them, once each
     let mut others: Vec<(String, Vec<bnd4::File>)> = Vec::new();
     let mut find_clip = |id: u32, hi: &[bnd4::File]| -> Option<Vec<u8>> {
@@ -802,7 +815,6 @@ fn make_inner(archives: &Archives) -> Result<usize, String> {
     // .hkx files in JR_LAB_CLIPS (a<sec>_<num>.hkx)
     #[cfg(feature = "lab")]
     let lab_slots: Vec<u32> = std::env::var("JR_LAB_SLOTS").unwrap_or_default().split(',').filter_map(|s| s.trim().parse().ok()).collect();
-    let mut skipped: Vec<u32> = Vec::new();
     for (_k, a) in anims.iter().enumerate() {
         #[cfg(feature = "lab")]
         if let (Some(&clip), Ok(dir)) = (lab_slots.get(_k), std::env::var("JR_LAB_CLIPS")) {
@@ -846,12 +858,19 @@ fn make_inner(archives: &Archives) -> Result<usize, String> {
         }
     }
     hi.sort_by_key(|f| f.id);
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("c0000_a00_hi.anibnd.dcx"), dcx::compress(&bnd4::build(&hi_src, &hi))?).map_err(|e| e.to_string())?;
+    let peak_hi = crate::recolor::private_mb();
+    drop(hi);
+    drop(hi_src);
     // their events
     let ani_src = dcx::decompress(&archives.read(ANIBND)?)?;
     let mut ani = bnd4::read(&ani_src)?;
     let tae = ani.iter_mut().find(|f| f.name.to_ascii_lowercase().ends_with("\\a00.tae")).ok_or("a00.tae missing")?;
     let copies: Vec<(u32, u32)> = anims.iter().filter(|a| !skipped.contains(&a.id)).map(|a| (a.id, a.events_from)).collect();
     tae.data = tae_add(&tae.data, &copies)?;
+    let peak_ani = crate::recolor::private_mb();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     // 1.2.0: Carian Combo Warriors' animations, then their move tables (only when the animations went in:
     // their tables with the game's clips would be half a moveset)
@@ -862,6 +881,7 @@ fn make_inner(archives: &Archives) -> Result<usize, String> {
                 let t = ccw_into(&ccw, ANIBND, &mut ani);
                 ani.sort_by_key(|f| f.id);
                 log!("anims: Carian Combo Warriors: {n} animations, {t} move tables");
+                log!("anims: memory {peak_hi} MB with the hi binder, {peak_ani} MB with the events, {} MB now", crate::recolor::private_mb());
             }
             Err(e) => {
                 for n in ccw_outputs() {
@@ -871,7 +891,6 @@ fn make_inner(archives: &Archives) -> Result<usize, String> {
             }
         }
     }
-    std::fs::write(dir.join("c0000_a00_hi.anibnd.dcx"), dcx::compress(&bnd4::build(&hi_src, &hi))?).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("c0000.anibnd.dcx"), dcx::compress(&bnd4::build(&ani_src, &ani))?).map_err(|e| e.to_string())?;
     // 1.2.0: the launcher's enemy reaction was scrapped with the combo trees (the user saw it again after a
     // parry's burst): the soldiers keep their own. Binders an earlier build made are taken away.

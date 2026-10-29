@@ -422,7 +422,12 @@ fn make_all(jobs: Vec<Job>) {
     let made = std::sync::atomic::AtomicUsize::new(0);
     let next = std::sync::atomic::AtomicUsize::new(0);
     crate::splash::PROGRESS.1.store(jobs.len(), Ordering::Relaxed);
-    let workers = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).clamp(1, 12);
+    let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).clamp(1, 12);
+    // 2.0.7: as many workers as the PC's free memory holds (one takes up to ~300 MB on a 4K texture), keeping 3 GB for
+    // the game, which loads its title screen meanwhile. Twelve at once ran 8 GB PCs out of memory (crash reports).
+    let (commit, phys) = memory_free_mb();
+    let workers = ((commit.min(phys + 2048).saturating_sub(3072)) / 400).clamp(1, cores as u64) as usize;
+    log!("recolor: {workers} workers ({cores} cores; {commit} MB free to commit, {phys} MB of memory free)");
     std::thread::scope(|scope| {
         for _ in 0..workers {
             scope.spawn(|| {
@@ -444,7 +449,34 @@ fn make_all(jobs: Vec<Job>) {
     let made = made.into_inner();
     let _ = std::fs::write(&stamp_path, want);
     log!("recolor: made {made} files in {:.1}s", t0.elapsed().as_secs_f32());
+    let waits = crate::perf::ALLOC_WAITS.load(Ordering::Relaxed);
+    if waits > 0 {
+        log!("recolor: memory ran short: allocations waited {:.1} s in all for memory to free up", waits as f32 * 0.05);
+    }
     READY.store(true, Ordering::Relaxed);
+}
+
+/// (2.0.7) Free memory, MB: what the system can still commit (memory + page file) and free physical memory.
+pub fn memory_free_mb() -> (u64, u64) {
+    use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    let mut m: MEMORYSTATUSEX = unsafe { std::mem::zeroed() };
+    m.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
+    if unsafe { GlobalMemoryStatusEx(&mut m) } == 0 {
+        return (8192, 8192);
+    }
+    (m.ullAvailPageFile >> 20, m.ullAvailPhys >> 20)
+}
+
+/// (2.0.7) This process's private memory, MB.
+pub fn private_mb() -> u64 {
+    use windows_sys::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS_EX};
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    let mut c: PROCESS_MEMORY_COUNTERS_EX = unsafe { std::mem::zeroed() };
+    c.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32;
+    if unsafe { GetProcessMemoryInfo(GetCurrentProcess(), &mut c as *mut _ as *mut _, c.cb) } == 0 {
+        return 0;
+    }
+    (c.PrivateUsage >> 20) as u64
 }
 
 /// Make one piece (all gender variants and LOD files the game has for it). Returns files written.
@@ -589,7 +621,14 @@ fn recolor_tpf(t: &[u8], rgb: [u8; 3]) -> Result<Vec<u8>, String> {
                 return Err(format!("{}: cannot decode", tex.name));
             }
             // texture2ddecoder gives BGRA packed as u32
-            let mut rgba: Vec<u8> = px.iter().flat_map(|p| { let b = p.to_le_bytes(); [b[2], b[1], b[0], b[3]] }).collect();
+            // (2.0.7: sized once and the decoded copy freed at once: a 4K texture held four full copies at a time, and
+            // twelve workers at once took 5.3 GB, an out-of-memory crash on players' PCs)
+            let mut rgba: Vec<u8> = Vec::with_capacity(px.len() * 4);
+            for p in &px {
+                let b = p.to_le_bytes();
+                rgba.extend_from_slice(&[b[2], b[1], b[0], b[3]]);
+            }
+            drop(px);
             colorize(&mut rgba, rgb);
             let enc = match fmt {
                 71 | 72 => encode_bc(texpresso::Format::Bc1, &rgba, pw, ph),
@@ -619,14 +658,15 @@ fn encode_bc(fmt: texpresso::Format, rgba: &[u8], w: usize, h: usize) -> Vec<u8>
 fn colorize(rgba: &mut [u8], rgb: [u8; 3]) {
     let lum = |p: &[u8]| 0.2126 * p[0] as f32 + 0.7152 * p[1] as f32 + 0.0722 * p[2] as f32;
     let n = rgba.len() / 4;
-    let mut lums: Vec<f32> = rgba.chunks_exact(4).map(lum).collect();
-    let mut sorted = lums.clone();
-    sorted.sort_by(|a, b| a.total_cmp(b));
-    let median = sorted[n / 2].max(8.0);
+    // (2.0.7: the median picked in place, no sorted copy; each pixel's brightness worked out again below. Same result.)
+    let median = {
+        let mut lums: Vec<f32> = rgba.chunks_exact(4).map(lum).collect();
+        lums.select_nth_unstable_by(n / 2, |a, b| a.total_cmp(b)).1.max(8.0)
+    };
     let target = rgb.map(|c| c as f32);
-    for (p, l) in rgba.chunks_exact_mut(4).zip(lums.iter_mut()) {
+    for p in rgba.chunks_exact_mut(4) {
         // a narrow brightness range keeps highlights in the target hue instead of blowing out
-        let k = (*l / median).clamp(0.35, 1.45);
+        let k = (lum(p) / median).clamp(0.35, 1.45);
         // keep a little of the original colour so metal and leather still read differently
         for c in 0..3 {
             let v = target[c] * k * 0.85 + p[c] as f32 * 0.15;

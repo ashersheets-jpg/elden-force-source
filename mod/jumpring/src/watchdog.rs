@@ -62,8 +62,51 @@ fn name_of(a: u64) -> String {
 #[repr(C, align(16))]
 struct Aligned(CONTEXT);
 
-/// (2.0.7: the lab's first freeze at the title logged an empty stack: why it couldn't be read now goes in its place)
+/// (2.0.8) Read a thread's stack on a helper thread, giving it 3 s. The unwinder takes the loader's function-table lock:
+/// if the stopped thread holds it (loading a DLL), the helper waits forever, and the thread it stopped with it. In 2.0.6
+/// no player's freeze report had even the watchdog's first line. Past the 3 s the thread is let go from here, and the
+/// helper gives up at its next step.
 fn stack(tid: u32) -> Result<Vec<u64>, String> {
+    use std::sync::atomic::{AtomicBool, AtomicU8};
+    use std::sync::{Arc, mpsc};
+    let h = unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, tid) };
+    if h.is_null() {
+        return Err(format!("(thread not opened: error {})", unsafe { GetLastError() }));
+    }
+    // (who lets the thread go: STOPPED -> LET_GO once, by the helper when done or by this thread past the 3 s)
+    let abandoned = Arc::new(AtomicBool::new(false));
+    let state = Arc::new(AtomicU8::new(IDLE));
+    let (tx, rx) = mpsc::channel();
+    let (gave_up, st) = (abandoned.clone(), state.clone());
+    let spawned = std::thread::Builder::new().name("jr-watchdog-stack".into()).spawn(move || {
+        let _ = tx.send(stack_now(tid, &gave_up, &st));
+    });
+    if spawned.is_err() {
+        unsafe { CloseHandle(h) };
+        return Err("(no helper thread)".into());
+    }
+    let r = match rx.recv_timeout(Duration::from_secs(3)) {
+        Ok(r) => r,
+        Err(_) => {
+            abandoned.store(true, Ordering::SeqCst);
+            if state.compare_exchange(STOPPED, LET_GO, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                unsafe { ResumeThread(h) };
+            } else {
+                // (not stopped yet: the helper lets it go the moment it does)
+                let _ = state.compare_exchange(IDLE, LET_GO, Ordering::SeqCst, Ordering::SeqCst);
+            }
+            Err("(stack not read in 3 s: the unwinder waited on a lock the thread holds; the thread was let go)".into())
+        }
+    };
+    unsafe { CloseHandle(h) };
+    r
+}
+
+const IDLE: u8 = 0;
+const STOPPED: u8 = 1;
+const LET_GO: u8 = 2;
+
+fn stack_now(tid: u32, abandoned: &std::sync::atomic::AtomicBool, state: &std::sync::atomic::AtomicU8) -> Result<Vec<u64>, String> {
     // (allocated before the thread stops: it may hold the heap's lock)
     let mut out = Vec::with_capacity(DEPTH);
     unsafe {
@@ -76,6 +119,17 @@ fn stack(tid: u32) -> Result<Vec<u64>, String> {
             CloseHandle(h);
             return Err(format!("(thread not stopped: error {e})"));
         }
+        if state.compare_exchange(IDLE, STOPPED, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+            // (the watchdog gave up before this thread got to stop it)
+            ResumeThread(h);
+            CloseHandle(h);
+            return Err("(abandoned)".into());
+        }
+        let let_go = || {
+            if state.compare_exchange(STOPPED, LET_GO, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                ResumeThread(h);
+            }
+        };
         // (GetThreadContext wants its CONTEXT 16-byte aligned; windows-sys' CONTEXT is only 8: the call failed with
         // ERROR_NOACCESS whenever the stack put it off 16, and the lab's freeze logged no stack)
         let mut boxed = Aligned(std::mem::zeroed());
@@ -91,6 +145,12 @@ fn stack(tid: u32) -> Result<Vec<u64>, String> {
                 out.push(ctx.Rip);
                 let mut base = 0u64;
                 let f = RtlLookupFunctionEntry(ctx.Rip, &mut base, std::ptr::null_mut());
+                if abandoned.load(Ordering::SeqCst) {
+                    // (the watchdog let the thread go: its stack has moved on)
+                    let_go();
+                    CloseHandle(h);
+                    return Err("(abandoned)".into());
+                }
                 if f.is_null() {
                     // a leaf function: the return address is on top of the stack
                     if ctx.Rsp == 0 {
@@ -105,7 +165,7 @@ fn stack(tid: u32) -> Result<Vec<u64>, String> {
                 RtlVirtualUnwind(UNW_FLAG_NHANDLER, base, ctx.Rip, f, ctx, &mut data, &mut frame, std::ptr::null_mut());
             }
         }
-        ResumeThread(h);
+        let_go();
         CloseHandle(h);
         if !got {
             return Err(format!("(registers not read: error {err})"));
@@ -144,10 +204,64 @@ fn threads() -> Vec<u32> {
     out
 }
 
+/// (2.0.7: a freeze is often one thread waiting on another (the render thread on the GPU, a loader on a file): every
+/// thread's top frames, once)
+fn every_thread(tid: u32, ft: u32) {
+    for t in threads() {
+        if t != tid && t != ft {
+            crate::log::write_now(&format!("watchdog:   thread {t}: {}", named(t, 10)));
+        }
+    }
+}
+
+/// (2.0.8) Since when the player has been gone (a load, or the title), ms; 0 while in the world. From the frame task.
+static GONE_SINCE: AtomicU64 = AtomicU64::new(0);
+
+/// Every frame, from the frame task: is the player in the world?
+pub fn player_present(present: bool) {
+    if present {
+        GONE_SINCE.store(0, Ordering::Relaxed);
+    } else if GONE_SINCE.load(Ordering::Relaxed) == 0 {
+        GONE_SINCE.store(now_ms(), Ordering::Relaxed);
+    }
+}
+
+/// 2.0.8: players' freeze reports end in "player: gone (loading or title)" with no watchdog line: the game still drew frames
+/// (a loading screen that never ends, or the title) and the watchdog, which watches frames, saw nothing wrong. A minute
+/// with no player while frames come: every thread's place, once per load (a load that never ends shows what it waits on),
+/// then a line every 2 minutes (6 at most) saying the frames still come. `said` = (the load it's about, lines, frames then).
+fn endless_load(tid: u32, said: &mut (u64, u32, u64)) {
+    let since = GONE_SINCE.load(Ordering::Relaxed);
+    if since == 0 {
+        return;
+    }
+    let gone = now_ms().saturating_sub(since);
+    if said.0 != since {
+        if gone < 60_000 {
+            return;
+        }
+        *said = (since, 0, beats());
+        crate::log::write_now(&format!("watchdog: no player for {:.0} s while the game still draws frames (a load, or the title); where it is:", gone as f32 / 1000.0));
+        crate::log::write_now(&format!("watchdog: the game's main thread {tid} is at: {}", named(tid, DEPTH)));
+        let ft = FRAME.load(Ordering::Relaxed);
+        if ft != 0 && ft != tid {
+            crate::log::write_now(&format!("watchdog: the frame task's thread {ft} is at: {}", named(ft, DEPTH)));
+        }
+        every_thread(tid, ft);
+        return;
+    }
+    if said.1 < 6 && gone >= 60_000 + 120_000 * (said.1 as u64 + 1) {
+        let frames = beats();
+        crate::log::write_now(&format!("watchdog: still no player after {:.0} s ({} frames in the last 2 minutes)", gone as f32 / 1000.0, frames - said.2));
+        *said = (since, said.1 + 1, frames);
+    }
+}
+
 /// After the boot: watch the frame task's heartbeat. Writes once per freeze (again only after frames came back).
 pub fn start() {
     std::thread::spawn(|| {
         let mut reported = false;
+        let mut load_said = (0u64, 0u32, 0u64);
         loop {
             std::thread::sleep(Duration::from_secs(2));
             let last = BEAT.load(Ordering::Relaxed);
@@ -158,24 +272,21 @@ pub fn start() {
             let quiet = now_ms().saturating_sub(last);
             if quiet < FROZEN.as_millis() as u64 {
                 reported = false;
+                endless_load(tid, &mut load_said);
                 continue;
             }
             if reported {
                 continue;
             }
             reported = true;
-            crate::log::write_now(&format!("watchdog: no frame for {:.0} s; the game's main thread {tid} is at: {}", quiet as f32 / 1000.0, named(tid, DEPTH)));
+            // (2.0.8: said before any stack is read, so a report shows the freeze even if reading one goes wrong)
+            crate::log::write_now(&format!("watchdog: no frame for {:.0} s (the player {}); reading where the game is", quiet as f32 / 1000.0, if GONE_SINCE.load(Ordering::Relaxed) == 0 { "in the world" } else { "gone: loading or title" }));
+            crate::log::write_now(&format!("watchdog: the game's main thread {tid} is at: {}", named(tid, DEPTH)));
             let ft = FRAME.load(Ordering::Relaxed);
             if ft != 0 && ft != tid {
                 crate::log::write_now(&format!("watchdog: the frame task's thread {ft} is at: {}", named(ft, DEPTH)));
             }
-            // (2.0.7: a freeze is often one thread waiting on another (the render thread on the GPU, a loader on a file):
-            // every thread's top frames, once)
-            for t in threads() {
-                if t != tid && t != ft {
-                    crate::log::write_now(&format!("watchdog:   thread {t}: {}", named(t, 10)));
-                }
-            }
+            every_thread(tid, ft);
             // (2.0.7: the overlay's own GPU work: was its last frame done, was it inside the game's Present?)
             crate::log::write_now(&format!("watchdog: overlay: {}", hudhook::jr_state::report()));
             #[cfg(feature = "lab")]
