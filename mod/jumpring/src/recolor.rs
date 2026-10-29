@@ -165,6 +165,8 @@ fn stamp(jobs: &[Job]) -> String {
 /// opens one of the game's archives (.bhd/.bdt) waits at CreateFileW until the models are made.
 static GATE: std::sync::OnceLock<retour::RawDetour> = std::sync::OnceLock::new();
 static DONE: AtomicBool = AtomicBool::new(false);
+/// 2.0.7: the outfit pieces (parts) are made: until then only a parts file's open waits (DONE frees the rest earlier)
+static PARTS_DONE: AtomicBool = AtomicBool::new(false);
 thread_local! {
     /// The recolour worker itself reads the archives.
     static WORKER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -220,6 +222,25 @@ unsafe extern "system" fn hk_create_file(name: *const u16, access: u32, share: u
             }
         }
     }
+    // 2.0.7: the game started before the outfit pieces were all made (DONE comes once the files it reads at start exist):
+    // a parts file waits for them, in a loading screen, where waiting looks like loading
+    if DONE.load(Ordering::Acquire) && !PARTS_DONE.load(Ordering::Acquire) && !WORKER.with(|w| w.get()) && !name.is_null() {
+        let len = (0..).take_while(|&i| unsafe { *name.add(i) } != 0).count();
+        let path = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name, len) }).to_ascii_lowercase();
+        if path.contains(".partsbnd") {
+            let t0 = std::time::Instant::now();
+            while !PARTS_DONE.load(Ordering::Acquire) && t0.elapsed() < std::time::Duration::from_secs(600) {
+                unsafe {
+                    let mut msg: windows_sys::Win32::UI::WindowsAndMessaging::MSG = std::mem::zeroed();
+                    windows_sys::Win32::UI::WindowsAndMessaging::PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, windows_sys::Win32::UI::WindowsAndMessaging::PM_NOREMOVE);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            if t0.elapsed() > std::time::Duration::from_millis(200) {
+                log!("recolor: the game waited {:.1}s for the outfit pieces", t0.elapsed().as_secs_f32());
+            }
+        }
+    }
     let orig: CreateFileW = unsafe { std::mem::transmute(GATE.get().unwrap().trampoline()) };
     unsafe { orig(name, access, share, sa, disp, flags, tmpl) }
 }
@@ -269,6 +290,7 @@ pub fn start_early() {
         && anims_ok
     {
         READY.store(true, Ordering::Relaxed);
+        PARTS_DONE.store(true, Ordering::Release);
         DONE.store(true, Ordering::Release);
         #[cfg(not(feature = "lab"))]
         return;
@@ -287,6 +309,7 @@ pub fn start_early() {
         warn_mismatched_prepare();
         log!("recolor: making the fighters' outfits before the game loads its files ({} pieces)", jobs.len());
         make_all(jobs);
+        PARTS_DONE.store(true, Ordering::Release);
         DONE.store(true, Ordering::Release);
     });
 }
@@ -384,6 +407,17 @@ fn make_all(jobs: Vec<Job>) {
         return;
     }
     let _ = std::fs::create_dir_all(&parts);
+    // The new models' materials: the game looks materials up by name ("P[BD_M_9101]_Fabric") in
+    // one global binder, so add renamed copies of the source pieces' materials to it.
+    // (2.0.7: first, then the game goes on to its title screen while the pieces are made: on a slow PC the whole build
+    // took 164 s, all of it a black window that looked frozen (a player's freeze report). Only the material binder is read
+    // once at start; a parts file waits for the pieces (hk_create_file), in a loading screen.)
+    if let Err(e) = materials(&archives, &dir, &jobs) {
+        log!("recolor: materials: {e}");
+        return;
+    }
+    DONE.store(true, Ordering::Release);
+    log!("recolor: the game goes on ({:.1}s); the outfit pieces are made meanwhile", t0.elapsed().as_secs_f32());
     // 1.1.1: one worker per core (was one after another: 100 s here, minutes on slower PCs)
     let made = std::sync::atomic::AtomicUsize::new(0);
     let next = std::sync::atomic::AtomicUsize::new(0);
@@ -408,12 +442,6 @@ fn make_all(jobs: Vec<Job>) {
         }
     });
     let made = made.into_inner();
-    // The new models' materials: the game looks materials up by name ("P[BD_M_9101]_Fabric") in
-    // one global binder, so add renamed copies of the source pieces' materials to it.
-    if let Err(e) = materials(&archives, &dir, &jobs) {
-        log!("recolor: materials: {e}");
-        return;
-    }
     let _ = std::fs::write(&stamp_path, want);
     log!("recolor: made {made} files in {:.1}s", t0.elapsed().as_secs_f32());
     READY.store(true, Ordering::Relaxed);

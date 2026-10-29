@@ -48,8 +48,17 @@ pub static CINEMATIC: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicB
 
 impl ImguiRenderLoop for Overlay {
     fn initialize<'a>(&'a mut self, ctx: &mut imgui::Context, rc: &'a mut dyn hudhook::RenderContext) {
-        self.portraits = crate::portraits::Portraits::load(rc);
-        crate::world_fx::load_textures(rc);
+        // (lab, 2.0.7 title freeze: "notextures.on" beside the logs: no texture uploads (hudhook's own upload queue))
+        #[cfg(feature = "lab")]
+        let skip = crate::log::dir().join("notextures.on").exists();
+        #[cfg(not(feature = "lab"))]
+        let skip = false;
+        if skip {
+            log!("overlay: (lab) no textures");
+        } else {
+            self.portraits = crate::portraits::Portraits::load(rc);
+            crate::world_fx::load_textures(rc);
+        }
         ctx.set_ini_filename(None);
         // Roboto (Apache-2.0): condensed bold for text, black italic for JUMP FORCE-style titles.
         let font = |ctx: &mut imgui::Context, data: &'static [u8], px: f32| {
@@ -76,6 +85,16 @@ impl ImguiRenderLoop for Overlay {
         style[StyleColor::Border] = [0.93, 0.78, 0.38, 0.45];
         READY.store(true, std::sync::atomic::Ordering::Relaxed);
         log!("overlay: ready");
+        // (lab, 2.0.7 title freeze: the GPU never finished the game's frame 7; which game frame is the overlay's first?)
+        #[cfg(feature = "lab")]
+        unsafe {
+            let base = windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) as usize;
+            let gfx = *((base + 0x47f6400) as *const usize);
+            if gfx != 0 {
+                log!("lab overlay: first drawn in game frame {}", *((gfx + 0xe80) as *const u64));
+            }
+        }
+        log_hookers();
     }
 
     fn render(&mut self, ui: &mut Ui) {
@@ -586,6 +605,48 @@ pub fn install(hmodule: usize) {
         log!("overlay: off (JUMPRING_NO_OVERLAY)");
         return;
     }
+    // 2.0.7: the overlay starts once the game is well past its start. Started in the game's first frames (its textures
+    // uploaded, then its first draws), the GPU never finished the game's 7th frame on 3 of 7 boots after a force-closed
+    // game (the title froze; on players' PCs, Windows reset the driver and the game closed or crashed); started 20 s
+    // later, 10 of 10 were clean. It now waits for 600 of the game's frames and 20 s from its first (nothing of ours is
+    // drawn on the title screen anyway).
+    hudhook::jr_state::GATE.store(false, std::sync::atomic::Ordering::SeqCst);
+    // (lab: "overlayfallback.on": Present hooked the old way only, from a dummy swap chain, as when the game's was missed)
+    #[cfg(feature = "lab")]
+    if crate::log::dir().join("overlayfallback.on").exists() {
+        hudhook::jr_state::NO_LATE.store(true, std::sync::atomic::Ordering::SeqCst);
+        log!("overlay: (lab) hooking from the game's swap chain off");
+    }
+    #[cfg_attr(not(feature = "lab"), allow(unused_mut))]
+    let (mut frames, mut secs, mut from_first) = (600u64, 20u64, true);
+    // (lab: "overlaynow.on" beside the logs: at once, as up to 2.0.6; "overlaydelay.on" holding N: N s after now)
+    #[cfg(feature = "lab")]
+    if crate::log::dir().join("overlaynow.on").exists() {
+        (frames, secs, from_first) = (0, 0, false);
+        log!("overlay: (lab) at once");
+    } else if let Ok(t) = std::fs::read_to_string(crate::log::dir().join("overlaydelay.on")) {
+        (frames, secs, from_first) = (0, t.trim().parse().unwrap_or(15), false);
+        log!("overlay: (lab) held back {secs} s");
+    }
+    std::thread::spawn(move || {
+        use hudhook::jr_state::{GATE, PRESENTS};
+        use std::sync::atomic::Ordering::SeqCst;
+        // (hudhook hooks Present when the game makes its swap chain; if that was never seen, once the game has run 600
+        // frames: hooked the old way, from a dummy swap chain)
+        while PRESENTS.load(SeqCst) == 0 && (from_first || !hudhook::jr_state::LATE_HOOKED.load(SeqCst)) {
+            if !hudhook::jr_state::LATE_HOOKED.load(SeqCst) && crate::watchdog::beats() >= 600 {
+                log!("overlay: the game's swap chain was never seen being made; hooking it from a dummy one");
+                hudhook::hooks::dx12::late_hook_fallback();
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        let t0 = std::time::Instant::now();
+        while PRESENTS.load(SeqCst) < frames || t0.elapsed() < std::time::Duration::from_secs(secs) {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+        GATE.store(true, SeqCst);
+        log!("overlay: starting ({} game frames, {:.1} s after the first)", PRESENTS.load(SeqCst), t0.elapsed().as_secs_f32());
+    });
     std::thread::spawn(move || {
         let r = hudhook::Hudhook::builder()
             .with::<ImguiDx12Hooks>(Overlay { fonts: None, hud: None, portraits: Default::default(), wind: 0.0 })
@@ -596,11 +657,51 @@ pub fn install(hmodule: usize) {
             log!("overlay: could not hook DX12: {e:?}");
         }
     });
-    // (said once if nothing has been drawn half a minute on: hudhook's apply holds its thread while hooked)
+    // (said once if nothing has been drawn a minute and a half on (2.0.7: it starts 20 s in): hudhook's apply holds its thread while hooked)
     std::thread::spawn(|| {
-        std::thread::sleep(std::time::Duration::from_secs(30));
+        std::thread::sleep(std::time::Duration::from_secs(90));
         if !READY.load(std::sync::atomic::Ordering::Relaxed) {
-            log!("overlay: nothing drawn 30 s after starting");
+            log!("overlay: nothing drawn 90 s after starting");
         }
     });
+}
+
+/// 2.0.7: the other programs drawing into the game or hooking it, once (players' early crashes didn't come back in the
+/// lab, where none run; with the crash log, a report says which were there): DLLs loaded in the game whose names match
+/// known overlays and hooks (names only)
+fn log_hookers() {
+    use windows_sys::Win32::System::ProcessStatus::{K32EnumProcessModules, K32GetModuleBaseNameW};
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    const KNOWN: [&str; 27] = [
+        "gameoverlayrenderer", "discordhook", "discord", "rtsshooks", "rtss", "msiafterburner", "nvspcap", "nvcamera",
+        "nvidia", "amdxx", "amdow", "aticfx", "igo", "overwolf", "obs-", "graphics-hook", "reshade", "dxgi.dll",
+        "d3d12.dll", "gamebar", "xboxgame", "medal", "fraps", "questpath",
+        // (the graphics drivers' Direct3D 12 parts: which maker's GPU)
+        "nvwgf2", "amdxc", "igd12",
+    ];
+    let mut mods = vec![std::ptr::null_mut(); 1024];
+    let mut needed = 0u32;
+    let ok = unsafe { K32EnumProcessModules(GetCurrentProcess(), mods.as_mut_ptr(), (mods.len() * 8) as u32, &mut needed) } != 0;
+    if !ok {
+        return;
+    }
+    let n = (needed as usize / 8).min(mods.len());
+    let mut found = Vec::new();
+    for m in &mods[..n] {
+        let mut buf = [0u16; 260];
+        let len = unsafe { K32GetModuleBaseNameW(GetCurrentProcess(), *m, buf.as_mut_ptr(), buf.len() as u32) } as usize;
+        let name = String::from_utf16_lossy(&buf[..len]);
+        let lower = name.to_ascii_lowercase();
+        // (dxgi.dll / d3d12.dll: the system's own are expected; a copy beside the game is ReShade or another wrapper)
+        if KNOWN.iter().any(|k| lower.contains(k)) && lower != "dxgi.dll" && lower != "d3d12.dll" {
+            found.push(name);
+        }
+    }
+    let wrapper = ["dxgi.dll", "d3d12.dll", "dinput8.dll", "d3d11.dll", "version.dll", "winmm.dll"]
+        .iter()
+        .filter(|f| std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(f).exists())).unwrap_or(false))
+        .map(|f| format!("{f} beside the game"))
+        .collect::<Vec<_>>();
+    found.extend(wrapper);
+    log!("overlay: other overlays, hooks and the graphics driver in the game: {}", if found.is_empty() { "none seen".to_string() } else { found.join(", ") });
 }

@@ -45,6 +45,14 @@ fn candidates() -> Vec<PathBuf> {
 /// Load QuestPath if the player has it (boot thread, before the game's task runner starts).
 pub fn load() {
     use windows_sys::Win32::System::LibraryLoader::{LoadLibraryExW, LOAD_WITH_ALTERED_SEARCH_PATH};
+    // (lab, 2.0.7: scripted lab runs play as players do, without it (players' crash logs never have it; it hooks the
+    // game's frame presentation like our overlay, and once crashed in dxgi.dll during a first-launch build in the lab);
+    // JR_QUESTPATH=1 brings it back for a run)
+    #[cfg(feature = "lab")]
+    if std::env::var_os("JR_LAB_SCRIPT").is_some() && std::env::var_os("JR_QUESTPATH").is_none() {
+        log!("questpath: left out of this lab run (JR_QUESTPATH=1 loads it)");
+        return;
+    }
     let Some(dll) = candidates().into_iter().find(|p| p.is_file()) else {
         log!("questpath: not installed (optional: put its QuestPath folder in Documents\\Elden Force)");
         return;

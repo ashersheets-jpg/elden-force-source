@@ -1,6 +1,6 @@
 [package]
 name = "jumpring"
-version = "2.0.6"
+version = "2.0.7"
 edition = "2024"
 license = "MIT"
 publish = false
@@ -21,7 +21,8 @@ aes = "0.8"
 base64 = "0.22"
 eldenring = { path = "../../tools/fromsoftware-rs/crates/eldenring" }
 fromsoftware-shared = { path = "../../tools/fromsoftware-rs/crates/shared" }
-hudhook = { version = "0.9.3", default-features = false, features = ["dx12", "inject"] }
+# (2.0.7: vendored in mod/hudhook: the game always gets its window messages, render state for the freeze report)
+hudhook = { version = "0.9.3", path = "../hudhook", default-features = false, features = ["dx12", "inject"] }
 num-bigint = "0.5.1"
 png = "0.17"
 rand = "0.10.3"

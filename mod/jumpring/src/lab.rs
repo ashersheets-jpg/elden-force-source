@@ -466,7 +466,10 @@ fn script_lock() -> std::sync::MutexGuard<'static, Option<Script>> {
                 .map(|l| l.trim().to_string()).filter(|l| !l.is_empty() && !l.starts_with('#')).collect();
             log!("lab script {path}: {} lines", lines.len());
             let now = std::time::Instant::now();
-            *g = Some(Script { lines, at: 0, wait_until: now, holds: Vec::new(), next_enter: now + std::time::Duration::from_secs(12), wait_key: None, wait_boss: false, no_enter: false, wait_world: None });
+            // (2.0.7: "noenter" as the first line holds from the start: the script's commands only run in the world, after the
+            // title screen's Enter presses; titleidle needs the title left alone)
+            let no_enter = lines.first().is_some_and(|l| l == "noenter");
+            *g = Some(Script { lines, at: 0, wait_until: now, holds: Vec::new(), next_enter: now + std::time::Duration::from_secs(12), wait_key: None, wait_boss: false, no_enter, wait_world: None });
         }
     }
     g
@@ -1217,6 +1220,14 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
                 log!("lab script: grab {ok}");
             }
             "log" => log!("lab script: {rest}"),
+            // (2.0.7: the fault log's memory dump, on an address: "hexdump er+<hex>" or "hexdump <hex>")
+            "hexdump" => {
+                let t = rest.trim();
+                let er = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+                let a = match t.strip_prefix("er+") { Some(o) => er + usize::from_str_radix(o.trim_start_matches("0x"), 16).unwrap_or(0), None => usize::from_str_radix(t.trim_start_matches("0x"), 16).unwrap_or(0) };
+                let sleep = windows_sys::Win32::System::Threading::Sleep as usize;
+                log!("lab hexdump: (Sleep is {:?}){}", crate::veh::module_of(sleep), crate::veh::hexdump(t, a));
+            }
             // "foehold <height> <tilt deg> <spin deg/s> <yaw deg>" / "foehold off"
             "foehold" => {
                 let v: Vec<f32> = rest.split_whitespace().filter_map(|t| t.parse().ok()).collect();
@@ -2348,6 +2359,8 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
             // with a real one); "kill0" HP set to 0 (which never starts the game's death)
             "kill" => crate::bosses::kill_player(&mut player.chr_ins),
             "kill0" => player.chr_ins.modules.data.hp = 0,
+            // 2.0.7: "freeze <ms>": the frame task holds the game's thread (the watchdog's report, tested)
+            "freeze" => std::thread::sleep(std::time::Duration::from_millis(rest.trim().parse().unwrap_or(30000))),
             // 2.0.6: "hurt <hp>": HP lost as from a hit (rescue.rs: a fall in a fight counts only after one)
             "hurt" => {
                 let d = &mut player.chr_ins.modules.data;

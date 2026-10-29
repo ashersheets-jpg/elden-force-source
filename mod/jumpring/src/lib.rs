@@ -64,10 +64,11 @@ mod heapcheck;
 mod labheap;
 #[cfg(feature = "lab")]
 mod luahook;
-#[cfg(feature = "lab")]
 mod veh;
 #[cfg(feature = "lab")]
 mod d3ddebug;
+#[cfg(feature = "lab")]
+mod steamoverlay_lab;
 #[cfg(feature = "lab")]
 mod allocwatch;
 #[cfg(feature = "lab")]
@@ -97,6 +98,8 @@ pub unsafe extern "C" fn DllMain(hmodule: usize, reason: u32) -> bool {
         return true;
     }
     watchdog::note_main_thread();
+    #[cfg(feature = "lab")]
+    steamoverlay_lab::install();
     steam::install();
     recolor::start_early();
     // (lab, 2.0.3: JR_EARLY_MAP=1 asks the library for the task runner at once, the earliest a player's PC could: does it
@@ -141,6 +144,17 @@ fn singletons_named() {
             let want = [<CSTaskImp as from_singleton::FromSingleton>::name(), <eldenring::cs::WorldChrMan as from_singleton::FromSingleton>::name()];
             if want.iter().all(|n| named.contains(n.as_ref())) {
                 log!("boot: the game's singletons named ({} after {tries} looks, {:.2} s)", named.len(), t0.elapsed().as_secs_f32());
+                // (lab, the 2.0.7 crash hunt: every singleton's name and its global slot's address in the game, to name the
+                // globals players' crash addresses read through: logs/singletons.txt)
+                #[cfg(feature = "lab")]
+                {
+                    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+                    let mut rows: Vec<(usize, String)> = from_singleton::find::derived_singletons(pe).iter().map(|(k, v)| (v.as_ptr() as usize - base, k.clone())).collect();
+                    rows.extend(unsafe { from_singleton::find::fd4_singletons(pe).finish() }.iter().map(|(k, v)| (v.as_ptr() as usize - base, k.clone())));
+                    rows.sort();
+                    let text: String = rows.iter().map(|(r, k)| format!("{r:#x} {k}\n")).collect();
+                    let _ = std::fs::write(log::dir().join("logs").join("singletons.txt"), text);
+                }
                 return;
             }
         }
@@ -179,12 +193,29 @@ fn boot(hmodule: usize) {
     labheap::start();
     #[cfg(feature = "lab")]
     luahook::start();
+    // (lab, 2.0.7 crash hunt: the graphics global players' crash at er+0x1a98b26 found null (er+0x47f6400, made by
+    // CSGraphicsImp's setup, cleared by its destructor): when it is set and cleared)
+    #[cfg(feature = "lab")]
+    std::thread::spawn(|| {
+        let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+        let slot = (base + 0x47f6400) as *const usize;
+        let t0 = Instant::now();
+        let mut last = usize::MAX;
+        loop {
+            let v = unsafe { slot.read_volatile() };
+            if v != last {
+                let heap = if v != 0 { unsafe { ((v + 0x5b8) as *const usize).read_volatile() } } else { 0 };
+                log::write_now(&format!("lab gfxglobal: er+0x47f6400 = {v:#x} (heap at +0x5b8 {heap:#x}) {:.1} s after load", t0.elapsed().as_secs_f32()));
+                last = v;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
     #[cfg(feature = "lab")]
     if log::dir().join("olddeath.on").exists() {
         bosses::OLD_DEATH.store(true, Ordering::Relaxed);
         log!("lab: olddeath.on: 2.0.5's handling of the player's death");
     }
-    #[cfg(feature = "lab")]
     veh::start();
     #[cfg(feature = "lab")]
     allocwatch::start();

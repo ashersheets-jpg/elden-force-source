@@ -124,6 +124,51 @@ impl Pcm {
     fn source(self) -> rodio::buffer::SamplesBuffer {
         rodio::buffer::SamplesBuffer::new(NonZero::new(self.channels).unwrap(), NonZero::new(self.rate).unwrap(), self.data)
     }
+    /// 2.0.7: the track over and over from the samples already decoded (rodio's repeat_infinite kept a second copy of the
+    /// whole track as it played, in 128 KB pieces: about 100 MB more per looping track; lab memprobe)
+    fn looped(self) -> Looped {
+        Looped { channels: NonZero::new(self.channels).unwrap(), rate: NonZero::new(self.rate).unwrap(), data: self.data, pos: 0 }
+    }
+}
+
+/// A decoded track played on a loop (Pcm::looped).
+struct Looped {
+    channels: rodio::ChannelCount,
+    rate: rodio::SampleRate,
+    data: Vec<f32>,
+    pos: usize,
+}
+
+impl Iterator for Looped {
+    type Item = f32;
+    fn next(&mut self) -> Option<f32> {
+        if self.data.is_empty() {
+            return None;
+        }
+        if self.pos >= self.data.len() {
+            self.pos = 0;
+        }
+        let v = self.data[self.pos];
+        self.pos += 1;
+        Some(v)
+    }
+}
+
+impl Source for Looped {
+    fn current_span_len(&self) -> Option<usize> {
+        // (a span never splits a frame: up to the track's end, where the loop starts again with a whole track)
+        let left = self.data.len().saturating_sub(self.pos);
+        Some(if left == 0 { self.data.len() } else { left })
+    }
+    fn channels(&self) -> rodio::ChannelCount {
+        self.channels
+    }
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.rate
+    }
+    fn total_duration(&self) -> Option<std::time::Duration> {
+        None
+    }
 }
 
 struct Sounds {
@@ -275,7 +320,7 @@ pub fn start() {
                         }
                         let player = rodio::Player::connect_new(sink.mixer());
                         player.set_volume(volume * music_gain());
-                        player.append(pcm.source().repeat_infinite());
+                        player.append(pcm.looped());
                         menu = Some((player, volume));
                         log!("audio: menu music {name}");
                     }
@@ -293,7 +338,7 @@ pub fn start() {
                     } else {
                         match sounds.load("file:boss", &Pick::Random) {
                             Ok((name, pcm)) => {
-                                boss = Some(Fader::new(sink.mixer(), pcm.source().repeat_infinite(), BOSS_VOLUME, 2.0));
+                                boss = Some(Fader::new(sink.mixer(), pcm.looped(), BOSS_VOLUME, 2.0));
                                 log!("audio: boss music {name}");
                             }
                             Err(e) => log!("audio: boss music: {e}"),

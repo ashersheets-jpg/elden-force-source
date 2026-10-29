@@ -145,14 +145,32 @@ fn ensure() {
     });
 }
 
+/// lab (2.0.7, the quick-close tests): JR_NO_STEAM_HOOK=1: Steam is not opened and Elden Ring quits by itself when it is
+/// closed, as with 2.0.5, but is never asked to relaunch (a relaunch through Steam would start the game without Elden Force,
+/// on the player's normal save)
+#[cfg(feature = "lab")]
+fn no_open() -> bool {
+    std::env::var_os("JR_NO_STEAM_HOOK").is_some()
+}
+#[cfg(not(feature = "lab"))]
+fn no_open() -> bool {
+    false
+}
+
 unsafe extern "C" fn hk_restart(app: u32) -> bool {
+    if no_open() {
+        crate::log!("steam: (lab) not opened, no relaunch");
+        return false;
+    }
     ensure();
     let orig: Restart = unsafe { std::mem::transmute(RESTART.get().unwrap().trampoline()) };
     unsafe { orig(app) }
 }
 
 unsafe extern "C" fn hk_init() -> bool {
-    ensure();
+    if !no_open() {
+        ensure();
+    }
     let orig: Init = unsafe { std::mem::transmute(INIT.get().unwrap().trampoline()) };
     unsafe { orig() }
 }
