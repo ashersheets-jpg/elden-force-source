@@ -44,7 +44,7 @@ pub struct Whip {
 }
 
 /// 1.1.0 (user: runic magic circles in Elden Ring's palette): the boss tells' seals, each drawn offline
-/// (work/sigils/sigils.py) and embedded (assets/sigils).
+/// (work/sigils/sigils.py), shipped in jumpring\assets\sigils (2.0.9; embedded in the DLL before).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Sigil {
     /// Radagon's holy shockwave and the cataclysm's holy-floor bursts: pale grace-gold
@@ -306,16 +306,8 @@ const SIGIL_RIM: f32 = 1.06;
 const LANE_TEX: f32 = 1.3;
 const LANE_TILE: f32 = 544.0 / 320.0 * LANE_TEX;
 
-static SIGIL_PNG: [&[u8]; 8] = [
-    include_bytes!("../assets/sigils/holy.png"),
-    include_bytes!("../assets/sigils/cataclysm.png"),
-    include_bytes!("../assets/sigils/lightning.png"),
-    include_bytes!("../assets/sigils/lane.png"),
-    include_bytes!("../assets/sigils/head.png"),
-    include_bytes!("../assets/sigils/counter_core.png"),
-    include_bytes!("../assets/sigils/counter_shard.png"),
-    include_bytes!("../assets/sigils/counter_shard_red.png"),
-];
+/// (2.0.9) The seals' and comets' pictures, in jumpring\assets\sigils (inside the DLL before: portraits::asset)
+static SIGIL_PNG: [&str; 8] = ["holy", "cataclysm", "lightning", "lane", "head", "counter_core", "counter_shard", "counter_shard_red"];
 
 /// Where the zone textures' rim sits (fraction of the half-size): decals are drawn r / ZONE_RIM wide so
 /// the rim lands exactly on the spell's reach.
@@ -461,7 +453,7 @@ pub fn load_textures(rc: &mut dyn hudhook::RenderContext) {
             96,
         );
     }
-    let mut sig = SIGIL_PNG.iter().map(|data| crate::portraits::decode(data).and_then(|(px, w, h)| rc.load_texture(&px, w, h).ok()));
+    let mut sig = SIGIL_PNG.iter().map(|name| crate::portraits::asset(&format!("sigils/{name}.png")).and_then(|data| crate::portraits::decode(&data)).and_then(|(px, w, h)| rc.load_texture(&px, w, h).ok()));
     let sigils: [Option<TextureId>; 8] = std::array::from_fn(|_| sig.next().flatten());
     match (glow, streak, ribbon, ring, smoke, (zone_fill, zone_rim, zone_runes, lane), sigils) {
         (Some(glow), Some(streak), Some(ribbon), Some(ring), [Some(a), Some(b), Some(c)], (Some(zone_fill), Some(zone_rim), Some(zone_runes), Some(lane)), [Some(sh), Some(sc), Some(sl), Some(ct), Some(ch), Some(k0), Some(k1), Some(k2)]) => {

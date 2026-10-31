@@ -1,5 +1,5 @@
 //! Fighter portraits for the fighter select (roster tiles, and the posed whole figure beside the details) and the HUD
-//! (faces), embedded in the DLL. 1.3.0: the tiles and figures are posed renders (work/portraits/posed.py, compose_posed.py). They are
+//! (faces), read from jumpring\assets\portraits (2.0.9; embedded in the DLL before). 1.3.0: the tiles and figures are posed renders (work/portraits/posed.py, compose_posed.py). They are
 //! renders of Elden Force's own fighter models (the six made for the mod, and Bluesands' Goku and Naruto,
 //! shared under the author's permissions) made offline by work/portraits; Your Tarnished's card is an
 //! emblem drawn for Elden Force (the player's own character has no fixed look).
@@ -10,39 +10,27 @@ use hudhook::imgui::TextureId;
 
 use crate::log;
 
-macro_rules! portrait {
-    ($id:literal) => {
-        (
-            $id,
-            include_bytes!(concat!("../assets/portraits/", $id, ".png")).as_slice(),
-            include_bytes!(concat!("../assets/portraits/", $id, "_face.png")).as_slice(),
-            include_bytes!(concat!("../assets/portraits/", $id, "_full.png")).as_slice(),
-        )
-    };
-}
-
-static FILES: [(&str, &[u8], &[u8], &[u8]); 19] = [
+/// (2.0.9) The fighters whose pictures are in jumpring\assets\portraits: <id>.png (the card), <id>_face.png (the HUD),
+/// <id>_full.png (the posed figure).
+static IDS: [&str; 19] = [
     // 1.3.0: the new fighters' cards are renders of their models (work/portraits, outline shells left out)
-    portrait!("ichigo"),
-    portrait!("sasuke"),
-    portrait!("zoro"),
-    portrait!("yami"),
-    portrait!("gojo"),
-    portrait!("yuji"),
-    portrait!("gon"),
-    portrait!("killua"),
-    portrait!("jotaro"),
-    portrait!("dio"),
-    portrait!("goku"),
-    portrait!("naruto"),
-    portrait!("luffy"),
-    portrait!("deku"),
-    portrait!("all_might"),
-    portrait!("bakugo"),
-    portrait!("todoroki"),
-    portrait!("asta"),
-    portrait!("custom"),
+    "ichigo", "sasuke", "zoro", "yami", "gojo", "yuji", "gon", "killua", "jotaro", "dio",
+    "goku", "naruto", "luffy", "deku", "all_might", "bakugo", "todoroki", "asta", "custom",
 ];
+
+/// (2.0.9) One of Elden Force's pictures, read from the assets folder beside the DLL (jumpring\assets). 2.0.8 and before
+/// carried 8 MB of them inside the DLL: a small program holding a big compressed blob is what antivirus heuristics call
+/// a dropper (VirusTotal's "BehavesLike.Win64.Dropper"), and likely why Nexus Mods quarantined the uploads.
+pub(crate) fn asset(rel: &str) -> Option<Vec<u8>> {
+    let path = crate::recolor::mod_dir()?.parent()?.join("jumpring").join("assets").join(rel);
+    match std::fs::read(&path) {
+        Ok(b) => Some(b),
+        Err(e) => {
+            log!("assets: {} not read ({e})", path.display());
+            None
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct Portraits {
@@ -75,17 +63,17 @@ impl Portraits {
     pub fn load(rc: &mut dyn hudhook::RenderContext) -> Self {
         let mut by_id = HashMap::new();
         let mut full = HashMap::new();
-        for (id, card, face, whole) in FILES.iter() {
-            let up = |rc: &mut dyn hudhook::RenderContext, data: &[u8]| {
-                let (px, w, h) = decode(data)?;
+        for id in IDS {
+            let up = |rc: &mut dyn hudhook::RenderContext, name: String| {
+                let (px, w, h) = decode(&asset(&format!("portraits/{name}.png"))?)?;
                 rc.load_texture(&px, w, h).ok()
             };
-            if let Some(t) = up(rc, whole) {
-                full.insert(*id, t);
+            if let Some(t) = up(rc, format!("{id}_full")) {
+                full.insert(id, t);
             }
-            match (up(rc, card), up(rc, face)) {
+            match (up(rc, id.to_string()), up(rc, format!("{id}_face"))) {
                 (Some(c), Some(f)) => {
-                    by_id.insert(*id, (c, f));
+                    by_id.insert(id, (c, f));
                 }
                 _ => log!("portraits: {id} could not be loaded"),
             }
