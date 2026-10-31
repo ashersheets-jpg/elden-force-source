@@ -131,8 +131,11 @@ fn ensure() {
         }
         let exe = reg_string(r"Software\Valve\Steam", "SteamExe").unwrap_or_else(|| r"C:\Program Files (x86)\Steam\steam.exe".into());
         crate::log!("steam: not open, starting it before the game signs in ({exe})");
-        if Command::new(&exe).arg("-silent").spawn().is_err() {
-            let _ = Command::new("cmd").args(["/C", "start", "", "steam://open/main"]).spawn();
+        // (2.0.9: Steam's own exe only. The old fallback, "cmd /C start steam://", had a DLL start a command prompt, which
+        // antivirus heuristics read as a dropper; a missing steam.exe now just leaves Steam closed, as before 2.0.6)
+        if let Err(e) = Command::new(&exe).arg("-silent").spawn() {
+            crate::log!("steam: couldn't start it: {e}");
+            return;
         }
         // signing in can wait on the player (Steam's own sign-in window): a few minutes
         let t0 = Instant::now();

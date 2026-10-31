@@ -2361,6 +2361,9 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
             "kill0" => player.chr_ins.modules.data.hp = 0,
             // 2.0.7: "freeze <ms>": the frame task holds the game's thread (the watchdog's report, tested)
             "freeze" => std::thread::sleep(std::time::Duration::from_millis(rest.trim().parse().unwrap_or(30000))),
+            // 2.0.9: "lockwait <ms>": the players' 2.0.8 freeze shape: a thread holds a lock taken through the game's own
+            // lock wrapper (er+0x1ed9770) and the game's thread waits for it there; the watchdog's summary must name it
+            "lockwait" => lab_lockwait(rest.trim().parse().unwrap_or(30000)),
             // 2.0.6: "hurt <hp>": HP lost as from a hit (rescue.rs: a fall in a fight counts only after one)
             "hurt" => {
                 let d = &mut player.chr_ins.modules.data;
@@ -2556,4 +2559,35 @@ pub fn script_tick(player: &mut PlayerIns, combat: &mut crate::combat::Combat) {
             _ => log!("lab script: unknown command {line}"),
         }
     }
+}
+
+/// 2.0.9 (lab): "lockwait <ms>": a lab thread takes a lock through the game's own wrapper (er+0x1ed9770, game 2.7.2:
+/// EnterCriticalSection on the lock object's +8) and keeps it for <ms>; the game's thread then asks for the same lock
+/// there and waits, as the main thread did in the players' 2.0.8 freezes.
+fn lab_lockwait(ms: u64) {
+    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::System::Threading::{CRITICAL_SECTION, GetCurrentThreadId, InitializeCriticalSection, LeaveCriticalSection};
+    #[repr(C)]
+    struct Lock {
+        head: u64,
+        cs: CRITICAL_SECTION,
+    }
+    let p = Box::into_raw(Box::new(unsafe { std::mem::zeroed::<Lock>() })) as usize;
+    unsafe { InitializeCriticalSection(&mut (*(p as *mut Lock)).cs) };
+    let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+    let enter: unsafe extern "C" fn(usize, i32) -> u32 = unsafe { std::mem::transmute(base + 0x1ed9770) };
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || unsafe {
+        enter(p, -1);
+        crate::log::write_now(&format!("lab: lockwait: thread {} holds the lock for {ms} ms", GetCurrentThreadId()));
+        let _ = tx.send(());
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+        LeaveCriticalSection(&mut (*(p as *mut Lock)).cs);
+    });
+    let _ = rx.recv();
+    unsafe {
+        enter(p, -1);
+        LeaveCriticalSection(&mut (*(p as *mut Lock)).cs);
+    }
+    crate::log::write_now("lab: lockwait: the game's thread got the lock");
 }

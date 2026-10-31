@@ -63,6 +63,8 @@ mod heapcheck;
 #[cfg(feature = "lab")]
 mod labheap;
 #[cfg(feature = "lab")]
+mod labpool;
+#[cfg(feature = "lab")]
 mod luahook;
 mod veh;
 #[cfg(feature = "lab")]
@@ -94,10 +96,12 @@ use ui::{Menu, Page, UI};
 /// Called by the loader. Do not call this yourself.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn DllMain(hmodule: usize, reason: u32) -> bool {
-    if reason != 1 {
+    if reason != 1 || !in_the_game() {
         return true;
     }
     watchdog::note_main_thread();
+    #[cfg(feature = "lab")]
+    watchdog::stress();
     #[cfg(feature = "lab")]
     steamoverlay_lab::install();
     steam::install();
@@ -114,6 +118,16 @@ pub unsafe extern "C" fn DllMain(hmodule: usize, reason: u32) -> bool {
     }
     std::thread::spawn(move || boot(hmodule));
     true
+}
+
+/// (2.0.9) Is this DLL inside Elden Ring? Loaded anywhere else (an antivirus sandbox runs DLLs on their own to watch what
+/// they do: the Nexus quarantines and "BehavesLike.Win64.Dropper") it does nothing at all: no Steam, no files, no threads.
+fn in_the_game() -> bool {
+    use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
+    let mut buf = [0u16; 1024];
+    let n = unsafe { GetModuleFileNameW(std::ptr::null_mut(), buf.as_mut_ptr(), buf.len() as u32) } as usize;
+    let path = String::from_utf16_lossy(&buf[..n.min(buf.len())]).to_ascii_lowercase();
+    path.rsplit(['\\', '/']).next() == Some("eldenring.exe")
 }
 
 /// 2.0.3 (Melty players' logs: "boot: CSTask never appeared" within a second of starting, then nothing of the mod ran, while
@@ -191,6 +205,8 @@ fn boot(hmodule: usize) {
     heapcheck::start();
     #[cfg(feature = "lab")]
     labheap::start();
+    #[cfg(feature = "lab")]
+    labpool::start();
     #[cfg(feature = "lab")]
     luahook::start();
     // (lab, 2.0.7 crash hunt: the graphics global players' crash at er+0x1a98b26 found null (er+0x47f6400, made by
